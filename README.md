@@ -48,3 +48,6 @@ This version is a Progressive Web App (PWA).
 4. Tap **Add**.
 
 The app uses the same secure employee PIN login, database, admin dashboard, and Friday-email logic as the website. An internet connection is required to view/save live timesheets and send email.
+
+## Admin-managed email recipients
+The Admin dashboard now includes **Timesheet Email Recipients**. Add one or multiple addresses separated by commas, semicolons, or new lines. Saved recipients are stored in the database and used for both Friday-on-save emails and the weekly backup script. If no admin-managed recipients have been saved yet, the app falls back to the `TIMESHEET_TO_EMAIL` environment variable.

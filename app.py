@@ -1,6 +1,7 @@
 import os
 import smtplib
 from email.message import EmailMessage
+from email.utils import parseaddr
 from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
@@ -63,6 +64,16 @@ class EmployeeAccount(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+
+
+class AppSetting(db.Model):
+    __tablename__ = 'app_setting'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    value = db.Column(db.Text, nullable=False, default='')
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AdminAccount(db.Model):
     __tablename__ = 'admin_account'
     id = db.Column(db.Integer, primary_key=True)
@@ -90,6 +101,20 @@ def name_key(value: str) -> str:
 
 def valid_pin(pin: str) -> bool:
     return pin.isdigit() and 4 <= len(pin) <= 6
+
+
+def valid_email(value: str) -> bool:
+    value = (value or '').strip()
+    _name, addr = parseaddr(value)
+    return bool(addr and addr == value and '@' in addr and '.' in addr.rsplit('@', 1)[-1])
+
+
+def get_timesheet_recipients():
+    setting = AppSetting.query.filter_by(key='timesheet_recipients').first()
+    if setting and setting.value.strip():
+        return [x.strip() for x in setting.value.split(',') if x.strip()]
+    fallback = os.getenv('TIMESHEET_TO_EMAIL', '')
+    return [x.strip() for x in fallback.replace(';', ',').split(',') if x.strip()]
 
 
 def employee_required(view):
@@ -164,18 +189,20 @@ def send_timesheet_email(subject: str, body: str):
     username = os.environ['SMTP_USERNAME']
     password = os.environ['SMTP_PASSWORD']
     from_email = os.getenv('SMTP_FROM', username)
-    to_email = os.environ['TIMESHEET_TO_EMAIL']
+    recipients = get_timesheet_recipients()
+    if not recipients:
+        raise RuntimeError('No timesheet email recipients are configured.')
 
     msg = EmailMessage()
     msg['From'] = from_email
-    msg['To'] = to_email
+    msg['To'] = ', '.join(recipients)
     msg['Subject'] = subject
     msg.set_content(body)
 
     with smtplib.SMTP(host, port) as server:
         server.starttls()
         server.login(username, password)
-        server.send_message(msg)
+        server.send_message(msg, to_addrs=recipients)
 
 
 def email_if_friday(employee_name: str, week_start: date):
@@ -349,7 +376,43 @@ def admin_logout():
 @admin_required
 def admin_dashboard():
     employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
-    return render_template('admin.html', employees=employees)
+    recipients = get_timesheet_recipients()
+    return render_template('admin.html', employees=employees, recipients=recipients)
+
+
+@app.post('/admin/email-recipients')
+@admin_required
+def admin_email_recipients():
+    raw = request.form.get('recipients', '') or ''
+    parts = [x.strip() for x in raw.replace(';', ',').replace('\n', ',').split(',') if x.strip()]
+    recipients = []
+    seen = set()
+    invalid = []
+    for address in parts:
+        if not valid_email(address):
+            invalid.append(address)
+            continue
+        key = address.casefold()
+        if key not in seen:
+            seen.add(key)
+            recipients.append(address)
+
+    if invalid:
+        flash('These email addresses are invalid: ' + ', '.join(invalid), 'danger')
+        return redirect(url_for('admin_dashboard'))
+    if not recipients:
+        flash('Enter at least one valid email address.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    setting = AppSetting.query.filter_by(key='timesheet_recipients').first()
+    if not setting:
+        setting = AppSetting(key='timesheet_recipients')
+        db.session.add(setting)
+    setting.value = ','.join(recipients)
+    db.session.commit()
+    suffix = 'es' if len(recipients) != 1 else ''
+    flash(f'Email recipients updated ({len(recipients)} address{suffix}).', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.post('/admin/employees/add')

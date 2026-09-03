@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-from app import app, db, EmployeeTimeEntry, TimesheetEmailSubmission
+from app import app, db, EmployeeTimeEntry, TimesheetEmailSubmission, get_timesheet_recipients
 
 TZ = ZoneInfo(os.getenv('APP_TIMEZONE', 'America/New_York'))
 
@@ -55,18 +55,20 @@ def send_email(subject: str, body: str):
     username = os.environ['SMTP_USERNAME']
     password = os.environ['SMTP_PASSWORD']
     from_email = os.getenv('SMTP_FROM', username)
-    to_email = os.environ['TIMESHEET_TO_EMAIL']
+    recipients = get_timesheet_recipients()
+    if not recipients:
+        raise RuntimeError('No timesheet email recipients are configured.')
 
     msg = EmailMessage()
     msg['From'] = from_email
-    msg['To'] = to_email
+    msg['To'] = ', '.join(recipients)
     msg['Subject'] = subject
     msg.set_content(body)
 
     with smtplib.SMTP(host, port) as server:
         server.starttls()
         server.login(username, password)
-        server.send_message(msg)
+        server.send_message(msg, to_addrs=recipients)
 
 
 def employees_with_hours(week_start: date):
