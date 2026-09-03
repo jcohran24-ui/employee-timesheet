@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: weekly-timesheet
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_TIMEZONE
+        value: America/New_York
+      - key: DATABASE_URL
+        sync: false
+
+  - type: cron
+    name: weekly-timesheet-email
+    runtime: python
+    schedule: "0 21 * * 5"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python send_weekly.py
+    envVars:
+      - key: APP_TIMEZONE
+        value: America/New_York
+      - key: DATABASE_URL
+        sync: false
+      - key: EMPLOYEE_NAME
+        sync: false
+      - key: TIMESHEET_TO_EMAIL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
