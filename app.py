@@ -463,6 +463,32 @@ def admin_delete_employee(employee_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.post('/admin/employees/<int:employee_id>/resend-current-week')
+@admin_required
+def admin_resend_current_week(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    week_start = monday_for(datetime.now(TZ).date())
+    try:
+        subject, body = build_employee_email(employee.employee_name, week_start)
+        send_timesheet_email(subject, body)
+        flash(
+            f'{employee.employee_name}\'s timesheet for the week of '
+            f'{week_start.strftime("%m/%d/%Y")} was resent successfully.',
+            'success',
+        )
+    except Exception:
+        app.logger.exception('Admin resend timesheet email failed')
+        flash(
+            f'{employee.employee_name}\'s timesheet could not be resent. Check the email settings and Render logs.',
+            'danger',
+        )
+    return redirect(url_for('admin_dashboard'))
+
+
 @app.post('/admin/employees/<int:employee_id>/pin')
 @admin_required
 def admin_reset_pin(employee_id):

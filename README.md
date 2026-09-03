@@ -51,3 +51,7 @@ The app uses the same secure employee PIN login, database, admin dashboard, and 
 
 ## Admin-managed email recipients
 The Admin dashboard now includes **Timesheet Email Recipients**. Add one or multiple addresses separated by commas, semicolons, or new lines. Saved recipients are stored in the database and used for both Friday-on-save emails and the weekly backup script. If no admin-managed recipients have been saved yet, the app falls back to the `TIMESHEET_TO_EMAIL` environment variable.
+
+
+## Admin resend
+The Admin dashboard includes **Resend Current Week** for each employee. It immediately emails that employee’s current-week timesheet to all configured recipients without deleting or changing the original Friday submission record.
