@@ -386,6 +386,20 @@ def admin_toggle_employee(employee_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.post('/admin/employees/<int:employee_id>/delete')
+@admin_required
+def admin_delete_employee(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+    else:
+        employee_name = employee.employee_name
+        db.session.delete(employee)
+        db.session.commit()
+        flash(f'{employee_name} login account deleted. Historical timesheets were kept.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
 @app.post('/admin/employees/<int:employee_id>/pin')
 @admin_required
 def admin_reset_pin(employee_id):

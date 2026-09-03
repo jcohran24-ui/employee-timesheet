@@ -28,3 +28,7 @@ The admin PIN is hashed in the database when the admin account is first created.
 Employee PINs are also stored as password hashes, not plain text.
 
 Deactivating an employee blocks access but preserves historical timesheets.
+
+
+## Delete User
+The Admin dashboard includes **Delete User**. This permanently removes the employee login account only. Historical `employee_time_entry` records and prior `timesheet_email_submission` records are intentionally retained.
