@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-from app import app, db, TimeEntry
+from app import app, db, EmployeeTimeEntry
 
 TZ = ZoneInfo(os.getenv('APP_TIMEZONE', 'America/New_York'))
 
@@ -13,9 +13,12 @@ def monday_for(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
-def build_email(week_start: date):
+def build_employee_email(employee_name: str, week_start: date):
     week_end = week_start + timedelta(days=6)
-    entries = TimeEntry.query.filter(TimeEntry.work_date.between(week_start, week_end)).order_by(TimeEntry.work_date).all()
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.employee_name == employee_name,
+        EmployeeTimeEntry.work_date.between(week_start, week_end)
+    ).order_by(EmployeeTimeEntry.work_date).all()
     by_date = {e.work_date: e for e in entries}
 
     lines = []
@@ -29,9 +32,11 @@ def build_email(week_start: date):
         notes = e.notes if e and e.notes else ''
         total_regular += regular
         total_overtime += overtime
-        lines.append(f'{d.strftime("%A %m/%d/%Y")}: Regular {regular:.2f} | OT {overtime:.2f}' + (f' | {notes}' if notes else ''))
+        lines.append(
+            f'{d.strftime("%A %m/%d/%Y")}: Regular {regular:.2f} | OT {overtime:.2f}'
+            + (f' | {notes}' if notes else '')
+        )
 
-    employee_name = os.getenv('EMPLOYEE_NAME', 'Employee')
     subject = f'Timesheet - {employee_name} - Week of {week_start.strftime("%m/%d/%Y")}'
     body = (
         f'{employee_name} weekly timesheet\n'
@@ -64,12 +69,24 @@ def send_email(subject: str, body: str):
         server.send_message(msg)
 
 
+def employees_with_hours(week_start: date):
+    week_end = week_start + timedelta(days=6)
+    rows = db.session.query(EmployeeTimeEntry.employee_name).filter(
+        EmployeeTimeEntry.work_date.between(week_start, week_end)
+    ).distinct().order_by(EmployeeTimeEntry.employee_name).all()
+    return [row[0] for row in rows]
+
+
 if __name__ == '__main__':
     today = datetime.now(TZ).date()
-    # Friday email includes the current Monday-Friday entries, with Sat/Sun shown as zero unless entered.
     week_start = monday_for(today)
     with app.app_context():
         db.create_all()
-        subject, body = build_email(week_start)
-        send_email(subject, body)
-        print('Weekly timesheet email sent.')
+        employees = employees_with_hours(week_start)
+        if not employees:
+            print('No employee hours found for the current week. No emails sent.')
+        else:
+            for employee_name in employees:
+                subject, body = build_employee_email(employee_name, week_start)
+                send_email(subject, body)
+                print(f'Weekly timesheet email sent for {employee_name}.')

@@ -12,12 +12,18 @@
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
       <h1 class="h3 mb-1">Weekly Timesheet</h1>
+      <div class="fw-semibold">{{ employee_name }}</div>
       <div class="text-secondary">{{ week_start.strftime('%b %d, %Y') }} - {{ week_end.strftime('%b %d, %Y') }}</div>
     </div>
-    <div class="btn-group">
-      <a class="btn btn-outline-secondary" href="/?week={{ prev_week.isoformat() }}">Previous</a>
-      <a class="btn btn-outline-secondary" href="/">Current Week</a>
-      <a class="btn btn-outline-secondary" href="/?week={{ next_week.isoformat() }}">Next</a>
+    <div class="d-flex flex-wrap gap-2">
+      <div class="btn-group">
+        <a class="btn btn-outline-secondary" href="/?week={{ prev_week.isoformat() }}">Previous</a>
+        <a class="btn btn-outline-secondary" href="/">Current Week</a>
+        <a class="btn btn-outline-secondary" href="/?week={{ next_week.isoformat() }}">Next</a>
+      </div>
+      <form method="post" action="{{ url_for('switch_employee') }}">
+        <button class="btn btn-outline-dark" type="submit">Switch Employee</button>
+      </form>
     </div>
   </div>
 

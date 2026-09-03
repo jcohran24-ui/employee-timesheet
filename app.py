@@ -1,7 +1,7 @@
 import os
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint
 
@@ -14,6 +14,7 @@ db = SQLAlchemy(app)
 TZ = ZoneInfo(os.getenv('APP_TIMEZONE', 'America/New_York'))
 
 
+# Kept for compatibility with the original single-user database.
 class TimeEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     work_date = db.Column(db.Date, nullable=False)
@@ -25,6 +26,21 @@ class TimeEntry(db.Model):
     __table_args__ = (UniqueConstraint('work_date', name='uq_work_date'),)
 
 
+class EmployeeTimeEntry(db.Model):
+    __tablename__ = 'employee_time_entry'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_name = db.Column(db.String(120), nullable=False, index=True)
+    work_date = db.Column(db.Date, nullable=False, index=True)
+    regular_hours = db.Column(db.Float, nullable=False, default=0)
+    overtime_hours = db.Column(db.Float, nullable=False, default=0)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint('employee_name', 'work_date', name='uq_employee_work_date'),
+    )
+
+
 def monday_for(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
@@ -33,13 +49,39 @@ def week_days(start: date):
     return [start + timedelta(days=i) for i in range(7)]
 
 
+def clean_employee_name(value: str) -> str:
+    return ' '.join((value or '').strip().split())[:120]
+
+
 @app.before_request
 def create_tables():
     db.create_all()
 
 
+@app.route('/employee', methods=['GET', 'POST'])
+def employee():
+    if request.method == 'POST':
+        name = clean_employee_name(request.form.get('employee_name', ''))
+        if len(name) < 2:
+            flash('Please enter your full name.', 'danger')
+            return redirect(url_for('employee'))
+        session['employee_name'] = name
+        return redirect(url_for('index'))
+    return render_template('employee.html', employee_name=session.get('employee_name', ''))
+
+
+@app.post('/switch-employee')
+def switch_employee():
+    session.pop('employee_name', None)
+    return redirect(url_for('employee'))
+
+
 @app.route('/')
 def index():
+    employee_name = clean_employee_name(session.get('employee_name', ''))
+    if not employee_name:
+        return redirect(url_for('employee'))
+
     requested = request.args.get('week')
     try:
         base = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
@@ -48,7 +90,10 @@ def index():
 
     week_start = monday_for(base)
     days = week_days(week_start)
-    entries = TimeEntry.query.filter(TimeEntry.work_date.between(days[0], days[-1])).all()
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.employee_name == employee_name,
+        EmployeeTimeEntry.work_date.between(days[0], days[-1])
+    ).all()
     by_date = {e.work_date: e for e in entries}
 
     rows = []
@@ -69,6 +114,7 @@ def index():
 
     return render_template(
         'index.html',
+        employee_name=employee_name,
         week_start=week_start,
         week_end=days[-1],
         rows=rows,
@@ -82,27 +128,42 @@ def index():
 
 @app.post('/save')
 def save():
+    employee_name = clean_employee_name(session.get('employee_name', ''))
+    if not employee_name:
+        return redirect(url_for('employee'))
+
     week_start = date.fromisoformat(request.form['week_start'])
     for d in week_days(week_start):
         key = d.isoformat()
-        regular = float(request.form.get(f'regular_{key}', 0) or 0)
-        overtime = float(request.form.get(f'overtime_{key}', 0) or 0)
+        try:
+            regular = float(request.form.get(f'regular_{key}', 0) or 0)
+            overtime = float(request.form.get(f'overtime_{key}', 0) or 0)
+        except ValueError:
+            flash(f'Invalid hours for {d.strftime("%A, %b %d")}.', 'danger')
+            return redirect(url_for('index', week=week_start.isoformat()))
+
         notes = (request.form.get(f'notes_{key}', '') or '').strip()
 
         if regular < 0 or overtime < 0 or regular > 24 or overtime > 24 or regular + overtime > 24:
             flash(f'Invalid hours for {d.strftime("%A, %b %d")}. Daily total must be between 0 and 24.', 'danger')
             return redirect(url_for('index', week=week_start.isoformat()))
 
-        entry = TimeEntry.query.filter_by(work_date=d).first()
+        entry = EmployeeTimeEntry.query.filter_by(employee_name=employee_name, work_date=d).first()
         if entry:
             entry.regular_hours = regular
             entry.overtime_hours = overtime
             entry.notes = notes
         elif regular or overtime or notes:
-            db.session.add(TimeEntry(work_date=d, regular_hours=regular, overtime_hours=overtime, notes=notes))
+            db.session.add(EmployeeTimeEntry(
+                employee_name=employee_name,
+                work_date=d,
+                regular_hours=regular,
+                overtime_hours=overtime,
+                notes=notes,
+            ))
 
     db.session.commit()
-    flash('Timesheet saved.', 'success')
+    flash(f'{employee_name}\'s timesheet saved.', 'success')
     return redirect(url_for('index', week=week_start.isoformat()))
 
 
