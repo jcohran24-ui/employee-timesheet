@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
-from app import app, db, EmployeeTimeEntry
+from app import app, db, EmployeeTimeEntry, TimesheetEmailSubmission
 
 TZ = ZoneInfo(os.getenv('APP_TIMEZONE', 'America/New_York'))
 
@@ -87,6 +87,16 @@ if __name__ == '__main__':
             print('No employee hours found for the current week. No emails sent.')
         else:
             for employee_name in employees:
+                prior = TimesheetEmailSubmission.query.filter_by(
+                    employee_name=employee_name, week_start=week_start
+                ).first()
+                if prior:
+                    print(f'Skipping {employee_name}; Friday email was already sent.')
+                    continue
                 subject, body = build_employee_email(employee_name, week_start)
                 send_email(subject, body)
+                db.session.add(TimesheetEmailSubmission(
+                    employee_name=employee_name, week_start=week_start
+                ))
+                db.session.commit()
                 print(f'Weekly timesheet email sent for {employee_name}.')

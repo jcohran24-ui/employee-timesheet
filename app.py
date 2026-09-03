@@ -1,4 +1,6 @@
 import os
+import smtplib
+from email.message import EmailMessage
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, flash, session
@@ -41,6 +43,17 @@ class EmployeeTimeEntry(db.Model):
     )
 
 
+
+class TimesheetEmailSubmission(db.Model):
+    __tablename__ = 'timesheet_email_submission'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_name = db.Column(db.String(120), nullable=False, index=True)
+    week_start = db.Column(db.Date, nullable=False, index=True)
+    emailed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (
+        UniqueConstraint('employee_name', 'week_start', name='uq_employee_week_email'),
+    )
+
 def monday_for(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
@@ -52,6 +65,82 @@ def week_days(start: date):
 def clean_employee_name(value: str) -> str:
     return ' '.join((value or '').strip().split())[:120]
 
+
+
+def build_employee_email(employee_name: str, week_start: date):
+    week_end = week_start + timedelta(days=6)
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.employee_name == employee_name,
+        EmployeeTimeEntry.work_date.between(week_start, week_end)
+    ).order_by(EmployeeTimeEntry.work_date).all()
+    by_date = {e.work_date: e for e in entries}
+
+    lines = []
+    total_regular = 0.0
+    total_overtime = 0.0
+    for i in range(7):
+        d = week_start + timedelta(days=i)
+        e = by_date.get(d)
+        regular = e.regular_hours if e else 0.0
+        overtime = e.overtime_hours if e else 0.0
+        notes = e.notes if e and e.notes else ''
+        total_regular += regular
+        total_overtime += overtime
+        lines.append(
+            f'{d.strftime("%A %m/%d/%Y")}: Regular {regular:.2f} | OT {overtime:.2f}'
+            + (f' | {notes}' if notes else '')
+        )
+
+    subject = f'Timesheet - {employee_name} - Week of {week_start.strftime("%m/%d/%Y")}'
+    body = (
+        f'{employee_name} weekly timesheet\n'
+        f'Week: {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}\n\n'
+        + '\n'.join(lines)
+        + f'\n\nRegular Hours: {total_regular:.2f}'
+        + f'\nOvertime Hours: {total_overtime:.2f}'
+        + f'\nTotal Hours: {total_regular + total_overtime:.2f}\n'
+    )
+    return subject, body
+
+
+def send_timesheet_email(subject: str, body: str):
+    host = os.environ['SMTP_HOST']
+    port = int(os.getenv('SMTP_PORT', '587'))
+    username = os.environ['SMTP_USERNAME']
+    password = os.environ['SMTP_PASSWORD']
+    from_email = os.getenv('SMTP_FROM', username)
+    to_email = os.environ['TIMESHEET_TO_EMAIL']
+
+    msg = EmailMessage()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.set_content(body)
+
+    with smtplib.SMTP(host, port) as server:
+        server.starttls()
+        server.login(username, password)
+        server.send_message(msg)
+
+
+def email_if_friday(employee_name: str, week_start: date):
+    today = datetime.now(TZ).date()
+    if today.weekday() != 4 or monday_for(today) != week_start:
+        return False, None
+
+    prior = TimesheetEmailSubmission.query.filter_by(
+        employee_name=employee_name, week_start=week_start
+    ).first()
+    if prior:
+        return False, 'already_sent'
+
+    subject, body = build_employee_email(employee_name, week_start)
+    send_timesheet_email(subject, body)
+    db.session.add(TimesheetEmailSubmission(
+        employee_name=employee_name, week_start=week_start
+    ))
+    db.session.commit()
+    return True, None
 
 @app.before_request
 def create_tables():
@@ -163,7 +252,19 @@ def save():
             ))
 
     db.session.commit()
-    flash(f'{employee_name}\'s timesheet saved.', 'success')
+
+    try:
+        sent, reason = email_if_friday(employee_name, week_start)
+        if sent:
+            flash(f'{employee_name}\'s timesheet saved and emailed successfully.', 'success')
+        elif reason == 'already_sent':
+            flash(f'{employee_name}\'s timesheet saved. This week\'s Friday email was already sent.', 'success')
+        else:
+            flash(f'{employee_name}\'s timesheet saved.', 'success')
+    except Exception as exc:
+        app.logger.exception('Timesheet saved but Friday email failed')
+        flash(f'{employee_name}\'s timesheet saved, but the email could not be sent. Please notify the supervisor.', 'warning')
+
     return redirect(url_for('index', week=week_start.isoformat()))
 
 
