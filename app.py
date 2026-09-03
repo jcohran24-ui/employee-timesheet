@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -415,6 +415,21 @@ def admin_reset_pin(employee_id):
         flash(f'PIN reset for {employee.employee_name}.', 'success')
     return redirect(url_for('admin_dashboard'))
 
+
+
+@app.get('/manifest.webmanifest')
+def manifest():
+    response = send_from_directory(app.static_folder, 'manifest.webmanifest', mimetype='application/manifest+json')
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
+@app.get('/service-worker.js')
+def service_worker():
+    response = send_from_directory(app.static_folder, 'service-worker.js', mimetype='application/javascript')
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
 
 @app.get('/health')
 def health():

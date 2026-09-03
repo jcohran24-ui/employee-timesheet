@@ -32,3 +32,19 @@ Deactivating an employee blocks access but preserves historical timesheets.
 
 ## Delete User
 The Admin dashboard includes **Delete User**. This permanently removes the employee login account only. Historical `employee_time_entry` records and prior `timesheet_email_submission` records are intentionally retained.
+
+## Installable Android / iPhone PWA
+This version is a Progressive Web App (PWA).
+
+### Android
+1. Open the Render URL in Chrome.
+2. On the employee login page, tap **Install App** when shown.
+3. The Timesheet icon will be added to the home screen/app launcher.
+
+### iPhone
+1. Open the Render URL in **Safari**.
+2. Tap the **Share** button.
+3. Tap **Add to Home Screen**.
+4. Tap **Add**.
+
+The app uses the same secure employee PIN login, database, admin dashboard, and Friday-email logic as the website. An internet connection is required to view/save live timesheets and send email.

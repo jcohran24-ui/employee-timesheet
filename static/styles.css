@@ -4,3 +4,9 @@ body { background: #f5f7fa; }
 @media (max-width: 700px) {
   h1 { font-size: 1.4rem; }
 }
+
+.app-logo { width: 82px; height: 82px; border-radius: 18px; box-shadow: 0 .35rem 1rem rgba(0,0,0,.12); }
+.install-card { background: rgba(255,255,255,.92); }
+@media (display-mode: standalone) {
+  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+}
