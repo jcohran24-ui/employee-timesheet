@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Employee Timesheet</title>
+  <title>Employee Login</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
@@ -12,24 +12,20 @@
   <div class="card shadow-sm">
     <div class="card-body p-4 p-md-5">
       <h1 class="h3 mb-2">Employee Timesheet</h1>
-      <p class="text-secondary mb-4">Enter your full name to open your weekly timesheet.</p>
-
+      <p class="text-secondary mb-4">Sign in with your name and PIN.</p>
       {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
+        {% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
       {% endwith %}
-
-      <form method="post" action="{{ url_for('employee') }}">
+      <form method="post" action="{{ url_for('employee_login') }}">
         <label class="form-label fw-semibold" for="employee_name">Employee Name</label>
-        <input class="form-control form-control-lg" id="employee_name" name="employee_name" maxlength="120" required autocomplete="name" value="{{ employee_name }}" placeholder="First and last name">
-        <div class="d-grid mt-4">
-          <button class="btn btn-primary btn-lg" type="submit">Open My Timesheet</button>
-        </div>
+        <input class="form-control form-control-lg" id="employee_name" name="employee_name" maxlength="120" required autocomplete="name" placeholder="First and last name">
+        <label class="form-label fw-semibold mt-3" for="pin">PIN</label>
+        <input class="form-control form-control-lg" id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required autocomplete="current-password" placeholder="4–6 digit PIN">
+        <div class="d-grid mt-4"><button class="btn btn-primary btn-lg" type="submit">Sign In</button></div>
       </form>
     </div>
   </div>
-  <p class="small text-secondary text-center mt-3">Each employee name is stored separately.</p>
+  <p class="small text-secondary text-center mt-3"><a href="{{ url_for('admin_login') }}">Supervisor / Admin Login</a></p>
 </div>
 </body>
 </html>
