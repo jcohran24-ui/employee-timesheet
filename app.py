@@ -290,9 +290,16 @@ def index():
         entry = by_date.get(d)
         regular = entry.regular_hours if entry else 0.0
         overtime = entry.overtime_hours if entry else 0.0
+        daily_total = regular + overtime
         total_regular += regular
         total_overtime += overtime
-        rows.append({'date': d, 'regular': regular, 'overtime': overtime, 'notes': entry.notes if entry else ''})
+        rows.append({
+            'date': d,
+            'total': daily_total,
+            'regular': regular,
+            'overtime': overtime,
+            'notes': entry.notes if entry else ''
+        })
 
     return render_template(
         'index.html', employee_name=employee_name, week_start=week_start, week_end=days[-1], rows=rows,
@@ -309,26 +316,31 @@ def save():
     employee_name = account.employee_name
     week_start = date.fromisoformat(request.form['week_start'])
 
+    weekly_regular_used = 0.0
     for d in week_days(week_start):
         key = d.isoformat()
         try:
-            regular = float(request.form.get(f'regular_{key}', 0) or 0)
-            overtime = float(request.form.get(f'overtime_{key}', 0) or 0)
+            daily_total = float(request.form.get(f'total_{key}', 0) or 0)
         except ValueError:
             flash(f'Invalid hours for {d.strftime("%A, %b %d")}.', 'danger')
             return redirect(url_for('index', week=week_start.isoformat()))
 
         notes = (request.form.get(f'notes_{key}', '') or '').strip()
-        if regular < 0 or overtime < 0 or regular > 24 or overtime > 24 or regular + overtime > 24:
+        if daily_total < 0 or daily_total > 24:
             flash(f'Invalid hours for {d.strftime("%A, %b %d")}. Daily total must be between 0 and 24.', 'danger')
             return redirect(url_for('index', week=week_start.isoformat()))
+
+        regular_available = max(0.0, 40.0 - weekly_regular_used)
+        regular = min(daily_total, regular_available)
+        overtime = max(0.0, daily_total - regular)
+        weekly_regular_used += regular
 
         entry = EmployeeTimeEntry.query.filter_by(employee_name=employee_name, work_date=d).first()
         if entry:
             entry.regular_hours = regular
             entry.overtime_hours = overtime
             entry.notes = notes
-        elif regular or overtime or notes:
+        elif daily_total or notes:
             db.session.add(EmployeeTimeEntry(
                 employee_name=employee_name, work_date=d,
                 regular_hours=regular, overtime_hours=overtime, notes=notes,

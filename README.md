@@ -55,3 +55,6 @@ The Admin dashboard now includes **Timesheet Email Recipients**. Add one or mult
 
 ## Admin resend
 The Admin dashboard includes **Resend Current Week** for each employee. It immediately emails that employee’s current-week timesheet to all configured recipients without deleting or changing the original Friday submission record.
+
+## Automatic overtime calculation
+Employees enter only total hours worked per day. The application automatically assigns the first 40 hours in each Monday-Sunday workweek to regular time and all hours above 40 to overtime. The same stored regular/overtime split is used in Friday emails and admin resends.

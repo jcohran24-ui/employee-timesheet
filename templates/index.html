@@ -23,19 +23,51 @@
     </div>
   </div>
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+  <div class="alert alert-info py-2">
+    Enter <strong>total hours worked</strong> each day. The first <strong>40 hours</strong> of the week are automatically Regular Time; anything over 40 is automatically Overtime.
+  </div>
+
   <form method="post" action="/save">
     <input type="hidden" name="week_start" value="{{ week_start.isoformat() }}">
     <div class="card shadow-sm"><div class="table-responsive"><table class="table table-striped align-middle mb-0">
-      <thead><tr><th>Day</th><th>Date</th><th style="min-width:130px">Regular</th><th style="min-width:130px">Overtime</th><th style="min-width:260px">Notes / Work Performed</th><th>Total</th></tr></thead>
-      <tbody>{% for row in rows %}<tr><td class="fw-semibold">{{ row.date.strftime('%A') }}</td><td>{{ row.date.strftime('%m/%d') }}</td><td><input class="form-control hours" type="number" step="0.25" min="0" max="24" name="regular_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.regular) }}"></td><td><input class="form-control hours" type="number" step="0.25" min="0" max="24" name="overtime_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.overtime) }}"></td><td><input class="form-control" type="text" maxlength="500" name="notes_{{ row.date.isoformat() }}" value="{{ row.notes }}" placeholder="Optional"></td><td class="row-total fw-semibold">{{ '%.2f'|format(row.regular + row.overtime) }}</td></tr>{% endfor %}</tbody>
-      <tfoot><tr class="table-dark"><th colspan="2">Weekly Totals</th><th id="regular-total">{{ '%.2f'|format(total_regular) }}</th><th id="overtime-total">{{ '%.2f'|format(total_overtime) }}</th><th></th><th id="grand-total">{{ '%.2f'|format(grand_total) }}</th></tr></tfoot>
+      <thead><tr><th>Day</th><th>Date</th><th style="min-width:140px">Hours Worked</th><th style="min-width:115px">Regular</th><th style="min-width:115px">Overtime</th><th style="min-width:260px">Notes / Work Performed</th></tr></thead>
+      <tbody>{% for row in rows %}<tr>
+        <td class="fw-semibold">{{ row.date.strftime('%A') }}</td>
+        <td>{{ row.date.strftime('%m/%d') }}</td>
+        <td><input class="form-control total-hours" type="number" step="0.25" min="0" max="24" name="total_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.total) }}"></td>
+        <td class="regular-display fw-semibold">{{ '%.2f'|format(row.regular) }}</td>
+        <td class="overtime-display fw-semibold">{{ '%.2f'|format(row.overtime) }}</td>
+        <td><input class="form-control" type="text" maxlength="500" name="notes_{{ row.date.isoformat() }}" value="{{ row.notes }}" placeholder="Optional"></td>
+      </tr>{% endfor %}</tbody>
+      <tfoot><tr class="table-dark"><th colspan="3">Weekly Totals</th><th id="regular-total">{{ '%.2f'|format(total_regular) }}</th><th id="overtime-total">{{ '%.2f'|format(total_overtime) }}</th><th><span class="me-2">Total:</span><span id="grand-total">{{ '%.2f'|format(grand_total) }}</span></th></tr></tfoot>
     </table></div></div>
     <div class="d-grid d-sm-flex justify-content-sm-end mt-3"><button class="btn btn-primary btn-lg px-5" type="submit">Save Timesheet</button></div>
   </form>
   <p class="small text-secondary mt-3 mb-0">On Friday, saving the current week automatically emails your completed timesheet. Duplicate Friday emails are prevented.</p>
 </div>
 <script>
-function updateTotals(){let reg=0,ot=0;document.querySelectorAll('tbody tr').forEach(row=>{const inputs=row.querySelectorAll('.hours');const r=parseFloat(inputs[0].value)||0;const o=parseFloat(inputs[1].value)||0;reg+=r;ot+=o;row.querySelector('.row-total').textContent=(r+o).toFixed(2);});document.getElementById('regular-total').textContent=reg.toFixed(2);document.getElementById('overtime-total').textContent=ot.toFixed(2);document.getElementById('grand-total').textContent=(reg+ot).toFixed(2);}document.querySelectorAll('.hours').forEach(el=>el.addEventListener('input',updateTotals));
+function updateTotals(){
+  let weeklyTotal=0;
+  let regularUsed=0;
+  document.querySelectorAll('tbody tr').forEach(row=>{
+    const input=row.querySelector('.total-hours');
+    const total=Math.max(0, parseFloat(input.value)||0);
+    const regular=Math.min(total, Math.max(0, 40-regularUsed));
+    const overtime=Math.max(0, total-regular);
+    regularUsed+=regular;
+    weeklyTotal+=total;
+    row.querySelector('.regular-display').textContent=regular.toFixed(2);
+    row.querySelector('.overtime-display').textContent=overtime.toFixed(2);
+  });
+  const weeklyRegular=Math.min(weeklyTotal,40);
+  const weeklyOvertime=Math.max(weeklyTotal-40,0);
+  document.getElementById('regular-total').textContent=weeklyRegular.toFixed(2);
+  document.getElementById('overtime-total').textContent=weeklyOvertime.toFixed(2);
+  document.getElementById('grand-total').textContent=weeklyTotal.toFixed(2);
+}
+document.querySelectorAll('.total-hours').forEach(el=>el.addEventListener('input',updateTotals));
+updateTotals();
 </script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
