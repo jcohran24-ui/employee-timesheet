@@ -58,3 +58,7 @@ The Admin dashboard includes **Resend Current Week** for each employee. It immed
 
 ## Automatic overtime calculation
 Employees enter only total hours worked per day. The application automatically assigns the first 40 hours in each Monday-Sunday workweek to regular time and all hours above 40 to overtime. The same stored regular/overtime split is used in Friday emails and admin resends.
+
+
+## First-login PIN change
+Employee PINs created by an admin are temporary. On the employee's next login, the app requires a new 4–6 digit PIN before the timesheet can be opened. Admin PIN resets also force this change. Existing employee accounts are prompted once after this upgrade.

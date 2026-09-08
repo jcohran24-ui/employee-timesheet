@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -61,6 +61,7 @@ class EmployeeAccount(db.Model):
     name_key = db.Column(db.String(120), nullable=False, unique=True, index=True)
     pin_hash = db.Column(db.String(255), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
+    must_change_pin = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -128,6 +129,8 @@ def employee_required(view):
             session.pop('employee_id', None)
             flash('Please sign in.', 'warning')
             return redirect(url_for('employee_login'))
+        if account.must_change_pin and request.endpoint != 'employee_change_pin':
+            return redirect(url_for('employee_change_pin'))
         return view(*args, **kwargs)
     return wrapped
 
@@ -236,9 +239,22 @@ def seed_admin_from_environment():
         db.session.commit()
 
 
+def ensure_employee_pin_change_column():
+    # db.create_all() does not add columns to an existing table, so perform
+    # this small backward-compatible migration automatically on deployment.
+    columns = {column['name'] for column in inspect(db.engine).get_columns('employee_account')}
+    if 'must_change_pin' not in columns:
+        db.session.execute(text(
+            'ALTER TABLE employee_account '
+            'ADD COLUMN must_change_pin BOOLEAN NOT NULL DEFAULT TRUE'
+        ))
+        db.session.commit()
+
+
 @app.before_request
 def create_tables():
     db.create_all()
+    ensure_employee_pin_change_column()
     seed_admin_from_environment()
 
 
@@ -253,8 +269,38 @@ def employee_login():
             return redirect(url_for('employee_login'))
         session.clear()
         session['employee_id'] = account.id
+        if account.must_change_pin:
+            return redirect(url_for('employee_change_pin'))
         return redirect(url_for('index'))
     return render_template('employee.html')
+
+
+@app.route('/change-pin', methods=['GET', 'POST'])
+def employee_change_pin():
+    employee_id = session.get('employee_id')
+    account = db.session.get(EmployeeAccount, employee_id) if employee_id else None
+    if not account or not account.active:
+        session.clear()
+        flash('Please sign in.', 'warning')
+        return redirect(url_for('employee_login'))
+
+    if request.method == 'POST':
+        new_pin = (request.form.get('new_pin', '') or '').strip()
+        confirm_pin = (request.form.get('confirm_pin', '') or '').strip()
+        if not valid_pin(new_pin):
+            flash('Your new PIN must be 4–6 digits.', 'danger')
+        elif new_pin != confirm_pin:
+            flash('The PINs do not match.', 'danger')
+        elif check_password_hash(account.pin_hash, new_pin):
+            flash('Choose a PIN different from your temporary PIN.', 'danger')
+        else:
+            account.pin_hash = generate_password_hash(new_pin)
+            account.must_change_pin = False
+            db.session.commit()
+            flash('Your PIN has been changed successfully.', 'success')
+            return redirect(url_for('index'))
+
+    return render_template('change_pin.html', employee_name=account.employee_name)
 
 
 @app.post('/logout')
@@ -444,6 +490,7 @@ def admin_add_employee():
             name_key=name_key(employee_name),
             pin_hash=generate_password_hash(pin),
             active=True,
+            must_change_pin=True,
         ))
         db.session.commit()
         flash(f'Account created for {employee_name}.', 'success')
@@ -512,8 +559,9 @@ def admin_reset_pin(employee_id):
         flash('PIN must be 4–6 digits.', 'danger')
     else:
         employee.pin_hash = generate_password_hash(pin)
+        employee.must_change_pin = True
         db.session.commit()
-        flash(f'PIN reset for {employee.employee_name}.', 'success')
+        flash(f'Temporary PIN reset for {employee.employee_name}. They must choose a new PIN at next login.', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
