@@ -62,3 +62,15 @@ Employees enter only total hours worked per day. The application automatically a
 
 ## First-login PIN change
 Employee PINs created by an admin are temporary. On the employee's next login, the app requires a new 4–6 digit PIN before the timesheet can be opened. Admin PIN resets also force this change. Existing employee accounts are prompted once after this upgrade.
+
+## Twilio employee welcome texts
+Add these environment variables to the Render Web Service:
+
+- `TWILIO_ACCOUNT_SID` — Twilio Account SID (starts with `AC`)
+- `TWILIO_AUTH_TOKEN` — Twilio Auth Token
+- `TWILIO_PHONE_NUMBER` — Twilio sender number in E.164 format, e.g. `+17705551234`
+- `APP_BASE_URL` — optional but recommended public app URL, e.g. `https://employee-timesheet.onrender.com`
+
+The Admin page now stores an employee phone number. On employee creation, checking **Send Welcome Text** sends the app login link, employee name, and temporary PIN. Because PINs are stored only as secure hashes, old PINs cannot be recovered. To resend login info later, enter a new temporary PIN in **Reset PIN**, check **Text new PIN to employee**, and submit.
+
+Existing databases are upgraded automatically with a nullable `phone_number` column on `employee_account`.

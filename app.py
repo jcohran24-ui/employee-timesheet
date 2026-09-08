@@ -1,5 +1,8 @@
 import os
 import smtplib
+import base64
+import urllib.parse
+import urllib.request
 from email.message import EmailMessage
 from email.utils import parseaddr
 from datetime import date, datetime, timedelta
@@ -62,6 +65,7 @@ class EmployeeAccount(db.Model):
     pin_hash = db.Column(db.String(255), nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
     must_change_pin = db.Column(db.Boolean, nullable=False, default=True)
+    phone_number = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -102,6 +106,55 @@ def name_key(value: str) -> str:
 
 def valid_pin(pin: str) -> bool:
     return pin.isdigit() and 4 <= len(pin) <= 6
+
+
+def normalize_phone(value: str) -> str:
+    raw = (value or '').strip()
+    digits = ''.join(ch for ch in raw if ch.isdigit())
+    if len(digits) == 10:
+        return '+1' + digits
+    if len(digits) == 11 and digits.startswith('1'):
+        return '+' + digits
+    if raw.startswith('+') and 8 <= len(digits) <= 15:
+        return '+' + digits
+    return ''
+
+
+def app_login_url() -> str:
+    configured = os.getenv('APP_BASE_URL', '').strip().rstrip('/')
+    if configured:
+        return configured + '/employee'
+    return request.url_root.rstrip('/') + url_for('employee_login')
+
+
+def send_twilio_sms(to_number: str, message: str):
+    account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    from_number = os.environ['TWILIO_PHONE_NUMBER']
+    endpoint = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
+    payload = urllib.parse.urlencode({
+        'To': to_number,
+        'From': from_number,
+        'Body': message,
+    }).encode('utf-8')
+    credentials = base64.b64encode(f'{account_sid}:{auth_token}'.encode()).decode()
+    req = urllib.request.Request(endpoint, data=payload, method='POST')
+    req.add_header('Authorization', f'Basic {credentials}')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    with urllib.request.urlopen(req, timeout=15) as response:
+        if response.status not in (200, 201):
+            raise RuntimeError(f'Twilio returned HTTP {response.status}')
+
+
+def send_login_text(employee_name: str, phone_number: str, temporary_pin: str):
+    message = (
+        'JC Timesheet\n'
+        f'Login: {employee_name}\n'
+        f'Temporary PIN: {temporary_pin}\n'
+        f'Open: {app_login_url()}\n'
+        'You will be required to create a new PIN after signing in.'
+    )
+    send_twilio_sms(phone_number, message)
 
 
 def valid_email(value: str) -> bool:
@@ -239,9 +292,9 @@ def seed_admin_from_environment():
         db.session.commit()
 
 
-def ensure_employee_pin_change_column():
+def ensure_employee_account_columns():
     # db.create_all() does not add columns to an existing table, so perform
-    # this small backward-compatible migration automatically on deployment.
+    # small backward-compatible migrations automatically on deployment.
     columns = {column['name'] for column in inspect(db.engine).get_columns('employee_account')}
     if 'must_change_pin' not in columns:
         db.session.execute(text(
@@ -249,12 +302,19 @@ def ensure_employee_pin_change_column():
             'ADD COLUMN must_change_pin BOOLEAN NOT NULL DEFAULT TRUE'
         ))
         db.session.commit()
+    columns = {column['name'] for column in inspect(db.engine).get_columns('employee_account')}
+    if 'phone_number' not in columns:
+        db.session.execute(text(
+            'ALTER TABLE employee_account '
+            'ADD COLUMN phone_number VARCHAR(20)'
+        ))
+        db.session.commit()
 
 
 @app.before_request
 def create_tables():
     db.create_all()
-    ensure_employee_pin_change_column()
+    ensure_employee_account_columns()
     seed_admin_from_environment()
 
 
@@ -478,22 +538,39 @@ def admin_email_recipients():
 def admin_add_employee():
     employee_name = clean_name(request.form.get('employee_name', ''))
     pin = (request.form.get('pin', '') or '').strip()
+    phone_input = (request.form.get('phone_number', '') or '').strip()
+    phone_number = normalize_phone(phone_input) if phone_input else ''
+    send_text = request.form.get('send_welcome_text') == '1'
+
     if len(employee_name) < 2:
         flash('Enter the employee\'s full name.', 'danger')
     elif not valid_pin(pin):
         flash('PIN must be 4–6 digits.', 'danger')
+    elif phone_input and not phone_number:
+        flash('Enter a valid phone number, including area code.', 'danger')
+    elif send_text and not phone_number:
+        flash('A phone number is required to send the welcome text.', 'danger')
     elif EmployeeAccount.query.filter_by(name_key=name_key(employee_name)).first():
         flash('That employee already has an account.', 'danger')
     else:
-        db.session.add(EmployeeAccount(
+        employee = EmployeeAccount(
             employee_name=employee_name,
             name_key=name_key(employee_name),
             pin_hash=generate_password_hash(pin),
             active=True,
             must_change_pin=True,
-        ))
+            phone_number=phone_number or None,
+        )
+        db.session.add(employee)
         db.session.commit()
         flash(f'Account created for {employee_name}.', 'success')
+        if send_text:
+            try:
+                send_login_text(employee_name, phone_number, pin)
+                flash(f'Welcome text sent to {phone_number}.', 'success')
+            except Exception:
+                app.logger.exception('Twilio welcome text failed')
+                flash('The account was created, but the welcome text could not be sent. Check Twilio settings and Render logs.', 'warning')
     return redirect(url_for('admin_dashboard'))
 
 
@@ -553,15 +630,42 @@ def admin_resend_current_week(employee_id):
 def admin_reset_pin(employee_id):
     employee = db.session.get(EmployeeAccount, employee_id)
     pin = (request.form.get('pin', '') or '').strip()
+    send_text = request.form.get('send_login_text') == '1'
     if not employee:
         flash('Employee not found.', 'danger')
     elif not valid_pin(pin):
         flash('PIN must be 4–6 digits.', 'danger')
+    elif send_text and not employee.phone_number:
+        flash('Add a phone number for this employee before sending login info by text.', 'danger')
     else:
         employee.pin_hash = generate_password_hash(pin)
         employee.must_change_pin = True
         db.session.commit()
         flash(f'Temporary PIN reset for {employee.employee_name}. They must choose a new PIN at next login.', 'success')
+        if send_text:
+            try:
+                send_login_text(employee.employee_name, employee.phone_number, pin)
+                flash(f'New login text sent to {employee.phone_number}.', 'success')
+            except Exception:
+                app.logger.exception('Twilio reset PIN text failed')
+                flash('The PIN was reset, but the text could not be sent. Check Twilio settings and Render logs.', 'warning')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.post('/admin/employees/<int:employee_id>/phone')
+@admin_required
+def admin_update_phone(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    phone_input = (request.form.get('phone_number', '') or '').strip()
+    phone_number = normalize_phone(phone_input) if phone_input else ''
+    if not employee:
+        flash('Employee not found.', 'danger')
+    elif phone_input and not phone_number:
+        flash('Enter a valid phone number, including area code.', 'danger')
+    else:
+        employee.phone_number = phone_number or None
+        db.session.commit()
+        flash(f'Phone number updated for {employee.employee_name}.', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
