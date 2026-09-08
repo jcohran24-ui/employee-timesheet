@@ -85,3 +85,7 @@ After deployment, these public URLs are available without login:
 
 For Twilio A2P registration, use your deployed app URL plus `/privacy`, for example:
 `https://your-app.onrender.com/privacy`
+
+
+## Admin employee timesheet view
+Employee names on the Admin dashboard are clickable. Admins can review current and historical weekly timesheets, totals, notes, and email status without signing in as the employee.

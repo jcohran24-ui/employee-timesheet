@@ -498,6 +498,65 @@ def admin_dashboard():
     return render_template('admin.html', employees=employees, recipients=recipients)
 
 
+
+@app.get('/admin/employee/<int:employee_id>/timesheet')
+@admin_required
+def admin_employee_timesheet(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    requested = request.args.get('week')
+    try:
+        base_day = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
+    except ValueError:
+        base_day = datetime.now(TZ).date()
+
+    week_start = monday_for(base_day)
+    days = week_days(week_start)
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.employee_name == employee.employee_name,
+        EmployeeTimeEntry.work_date.between(days[0], days[-1])
+    ).all()
+    by_date = {e.work_date: e for e in entries}
+
+    rows = []
+    total_regular = 0.0
+    total_overtime = 0.0
+    for d in days:
+        entry = by_date.get(d)
+        regular = entry.regular_hours if entry else 0.0
+        overtime = entry.overtime_hours if entry else 0.0
+        total = regular + overtime
+        total_regular += regular
+        total_overtime += overtime
+        rows.append({
+            'date': d,
+            'regular': regular,
+            'overtime': overtime,
+            'total': total,
+            'notes': entry.notes if entry else ''
+        })
+
+    submission = TimesheetEmailSubmission.query.filter_by(
+        employee_name=employee.employee_name, week_start=week_start
+    ).first()
+
+    return render_template(
+        'admin_employee_timesheet.html',
+        employee=employee,
+        week_start=week_start,
+        week_end=days[-1],
+        rows=rows,
+        total_regular=total_regular,
+        total_overtime=total_overtime,
+        grand_total=total_regular + total_overtime,
+        prev_week=week_start - timedelta(days=7),
+        next_week=week_start + timedelta(days=7),
+        submission=submission,
+    )
+
 @app.post('/admin/email-recipients')
 @admin_required
 def admin_email_recipients():
