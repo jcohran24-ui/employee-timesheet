@@ -74,3 +74,14 @@ Add these environment variables to the Render Web Service:
 The Admin page now stores an employee phone number. On employee creation, checking **Send Welcome Text** sends the app login link, employee name, and temporary PIN. Because PINs are stored only as secure hashes, old PINs cannot be recovered. To resend login info later, enter a new temporary PIN in **Reset PIN**, check **Text new PIN to employee**, and submit.
 
 Existing databases are upgraded automatically with a nullable `phone_number` column on `employee_account`.
+
+
+## Public policy pages
+
+After deployment, these public URLs are available without login:
+
+- `/privacy` — Privacy Policy
+- `/terms` — Terms of Use
+
+For Twilio A2P registration, use your deployed app URL plus `/privacy`, for example:
+`https://your-app.onrender.com/privacy`

@@ -691,3 +691,12 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=os.getenv('FLASK_DEBUG') == '1')
+
+
+@app.route("/privacy")
+def privacy_policy():
+    return render_template("privacy.html")
+
+@app.route("/terms")
+def terms_of_use():
+    return render_template("terms.html")
