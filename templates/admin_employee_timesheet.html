@@ -9,19 +9,26 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-<div class="container py-4" style="max-width:1000px">
+<div class="container py-4" style="max-width:1050px">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
       <a href="{{ url_for('admin_dashboard') }}" class="text-decoration-none">&larr; Back to Admin</a>
       <h1 class="h3 mt-2 mb-1">{{ employee.employee_name }}</h1>
       <div class="text-secondary">Week of {{ week_start.strftime('%m/%d/%Y') }} - {{ week_end.strftime('%m/%d/%Y') }}</div>
     </div>
-    <div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
       {% if submission %}
         <span class="badge text-bg-success">Emailed {{ submission.emailed_at.strftime('%m/%d/%Y %I:%M %p') }}</span>
       {% else %}
         <span class="badge text-bg-secondary">Not emailed for this week</span>
       {% endif %}
+      <a class="btn btn-success" href="{{ url_for('admin_employee_timesheet_pdf', employee_id=employee.id, week=week_start.isoformat()) }}">Download PDF</a>
     </div>
   </div>
 
@@ -30,28 +37,38 @@
     <a class="btn btn-outline-primary" href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=next_week.isoformat()) }}">Next Week &rarr;</a>
   </div>
 
-  <div class="card shadow-sm mb-4">
-    <div class="table-responsive">
-      <table class="table align-middle mb-0">
-        <thead><tr><th>Day</th><th>Date</th><th class="text-end">Total</th><th class="text-end">Regular</th><th class="text-end">OT</th><th>Notes</th></tr></thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td>{{ row.date.strftime('%A') }}</td>
-            <td>{{ row.date.strftime('%m/%d/%Y') }}</td>
-            <td class="text-end fw-semibold">{{ '%.2f'|format(row.total) }}</td>
-            <td class="text-end">{{ '%.2f'|format(row.regular) }}</td>
-            <td class="text-end">{{ '%.2f'|format(row.overtime) }}</td>
-            <td>{{ row.notes or '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot class="table-light">
-          <tr class="fw-bold"><td colspan="2">Weekly Totals</td><td class="text-end">{{ '%.2f'|format(grand_total) }}</td><td class="text-end">{{ '%.2f'|format(total_regular) }}</td><td class="text-end">{{ '%.2f'|format(total_overtime) }}</td><td></td></tr>
-        </tfoot>
-      </table>
+  <form method="post" action="{{ url_for('admin_save_employee_timesheet', employee_id=employee.id) }}">
+    <input type="hidden" name="week_start" value="{{ week_start.isoformat() }}">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <strong>Edit Employee Hours</strong>
+        <span class="small text-secondary">Enter total hours worked. First 40 hours = Regular; over 40 = OT.</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead>
+            <tr><th>Day</th><th>Date</th><th style="min-width:120px">Total Hours</th><th class="text-end">Regular</th><th class="text-end">OT</th><th style="min-width:240px">Notes</th></tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td>{{ row.date.strftime('%A') }}</td>
+              <td>{{ row.date.strftime('%m/%d/%Y') }}</td>
+              <td><input class="form-control" type="number" inputmode="decimal" min="0" max="24" step="0.25" name="total_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.total) }}"></td>
+              <td class="text-end">{{ '%.2f'|format(row.regular) }}</td>
+              <td class="text-end">{{ '%.2f'|format(row.overtime) }}</td>
+              <td><input class="form-control" type="text" name="notes_{{ row.date.isoformat() }}" value="{{ row.notes }}" maxlength="500"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr class="fw-bold"><td colspan="2">Weekly Totals</td><td>{{ '%.2f'|format(grand_total) }}</td><td class="text-end">{{ '%.2f'|format(total_regular) }}</td><td class="text-end">{{ '%.2f'|format(total_overtime) }}</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
-  </div>
+    <button class="btn btn-primary mb-4" type="submit" onclick="return confirm('Save these changes to {{ employee.employee_name }}\'s timesheet?');">Save Admin Changes</button>
+  </form>
 
   <div class="d-flex flex-wrap gap-2">
     <form method="post" action="{{ url_for('admin_resend_current_week', employee_id=employee.id) }}" onsubmit="return confirm('Resend this employee\'s CURRENT week timesheet to all configured recipients?');">
@@ -59,7 +76,7 @@
     </form>
     <a class="btn btn-outline-secondary" href="{{ url_for('admin_dashboard') }}">Return to Admin</a>
   </div>
-  <p class="small text-secondary mt-3">This admin view is read-only. Employees continue to enter and save their own hours from their login.</p>
+  <p class="small text-secondary mt-3">Admin edits do not automatically resend a previously emailed timesheet. Use the resend button when you want a corrected current-week copy emailed.</p>
 </div>
 </body>
 </html>

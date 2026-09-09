@@ -9,10 +9,16 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 from zoneinfo import ZoneInfo
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
+from io import BytesIO
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
@@ -237,6 +243,88 @@ def build_employee_email(employee_name: str, week_start: date):
         + f'\nTotal Hours: {total_regular + total_overtime:.2f}\n'
     )
     return subject, body
+
+
+def get_employee_week_rows(employee_name: str, week_start: date):
+    days = week_days(week_start)
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.employee_name == employee_name,
+        EmployeeTimeEntry.work_date.between(days[0], days[-1])
+    ).all()
+    by_date = {e.work_date: e for e in entries}
+    rows = []
+    total_regular = 0.0
+    total_overtime = 0.0
+    for d in days:
+        entry = by_date.get(d)
+        regular = entry.regular_hours if entry else 0.0
+        overtime = entry.overtime_hours if entry else 0.0
+        total = regular + overtime
+        total_regular += regular
+        total_overtime += overtime
+        rows.append({
+            'date': d, 'regular': regular, 'overtime': overtime, 'total': total,
+            'notes': entry.notes if entry else ''
+        })
+    return rows, total_regular, total_overtime
+
+
+def build_timesheet_pdf(employee_name: str, week_start: date):
+    rows, total_regular, total_overtime = get_employee_week_rows(employee_name, week_start)
+    week_end = week_start + timedelta(days=6)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36,
+        title=f'{employee_name} Timesheet'
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TimesheetTitle', parent=styles['Title'], alignment=TA_CENTER, fontSize=18, leading=22, spaceAfter=6
+    )
+    subtitle_style = ParagraphStyle(
+        'TimesheetSubtitle', parent=styles['Normal'], alignment=TA_CENTER, fontSize=10, textColor=colors.HexColor('#555555'), spaceAfter=14
+    )
+    story = [
+        Paragraph('Employee Timesheet', title_style),
+        Paragraph(employee_name, styles['Heading2']),
+        Paragraph(
+            f'Week of {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}',
+            subtitle_style
+        ),
+        Spacer(1, 6),
+    ]
+    data = [['Day', 'Date', 'Total', 'Regular', 'OT', 'Notes']]
+    for row in rows:
+        notes = (row['notes'] or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        data.append([
+            row['date'].strftime('%A'),
+            row['date'].strftime('%m/%d/%Y'),
+            f"{row['total']:.2f}",
+            f"{row['regular']:.2f}",
+            f"{row['overtime']:.2f}",
+            Paragraph(notes or '-', styles['BodyText']),
+        ])
+    data.append(['Weekly Totals', '', f'{total_regular + total_overtime:.2f}', f'{total_regular:.2f}', f'{total_overtime:.2f}', ''])
+    table = Table(data, colWidths=[72, 72, 48, 52, 42, 210], repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d6efd')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('ALIGN', (2,1), (4,-1), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.white, colors.HexColor('#f7f9fc')]),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#e9ecef')),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph('Regular time is the first 40.00 hours in the workweek. Hours above 40.00 are overtime.', styles['BodyText']))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 
 def send_timesheet_email(subject: str, body: str):
@@ -515,29 +603,7 @@ def admin_employee_timesheet(employee_id):
 
     week_start = monday_for(base_day)
     days = week_days(week_start)
-    entries = EmployeeTimeEntry.query.filter(
-        EmployeeTimeEntry.employee_name == employee.employee_name,
-        EmployeeTimeEntry.work_date.between(days[0], days[-1])
-    ).all()
-    by_date = {e.work_date: e for e in entries}
-
-    rows = []
-    total_regular = 0.0
-    total_overtime = 0.0
-    for d in days:
-        entry = by_date.get(d)
-        regular = entry.regular_hours if entry else 0.0
-        overtime = entry.overtime_hours if entry else 0.0
-        total = regular + overtime
-        total_regular += regular
-        total_overtime += overtime
-        rows.append({
-            'date': d,
-            'regular': regular,
-            'overtime': overtime,
-            'total': total,
-            'notes': entry.notes if entry else ''
-        })
+    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
 
     submission = TimesheetEmailSubmission.query.filter_by(
         employee_name=employee.employee_name, week_start=week_start
@@ -556,6 +622,81 @@ def admin_employee_timesheet(employee_id):
         next_week=week_start + timedelta(days=7),
         submission=submission,
     )
+
+@app.post('/admin/employee/<int:employee_id>/timesheet/save')
+@admin_required
+def admin_save_employee_timesheet(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        week_start = date.fromisoformat(request.form['week_start'])
+    except (KeyError, ValueError):
+        flash('Invalid timesheet week.', 'danger')
+        return redirect(url_for('admin_employee_timesheet', employee_id=employee_id))
+
+    weekly_regular_used = 0.0
+    for d in week_days(week_start):
+        key = d.isoformat()
+        try:
+            daily_total = float(request.form.get(f'total_{key}', 0) or 0)
+        except ValueError:
+            flash(f'Invalid hours for {d.strftime("%A, %b %d")}.', 'danger')
+            return redirect(url_for('admin_employee_timesheet', employee_id=employee_id, week=week_start.isoformat()))
+
+        notes = (request.form.get(f'notes_{key}', '') or '').strip()
+        if daily_total < 0 or daily_total > 24:
+            flash(f'Invalid hours for {d.strftime("%A, %b %d")}. Daily total must be between 0 and 24.', 'danger')
+            return redirect(url_for('admin_employee_timesheet', employee_id=employee_id, week=week_start.isoformat()))
+
+        regular_available = max(0.0, 40.0 - weekly_regular_used)
+        regular = min(daily_total, regular_available)
+        overtime = max(0.0, daily_total - regular)
+        weekly_regular_used += regular
+
+        entry = EmployeeTimeEntry.query.filter_by(employee_name=employee.employee_name, work_date=d).first()
+        if entry:
+            if daily_total or notes:
+                entry.regular_hours = regular
+                entry.overtime_hours = overtime
+                entry.notes = notes
+            else:
+                db.session.delete(entry)
+        elif daily_total or notes:
+            db.session.add(EmployeeTimeEntry(
+                employee_name=employee.employee_name,
+                work_date=d,
+                regular_hours=regular,
+                overtime_hours=overtime,
+                notes=notes,
+            ))
+
+    db.session.commit()
+    flash(f'{employee.employee_name}\'s timesheet was updated by Admin. Regular and overtime totals were recalculated.', 'success')
+    return redirect(url_for('admin_employee_timesheet', employee_id=employee_id, week=week_start.isoformat()))
+
+
+@app.get('/admin/employee/<int:employee_id>/timesheet/pdf')
+@admin_required
+def admin_employee_timesheet_pdf(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    requested = request.args.get('week')
+    try:
+        base_day = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
+    except ValueError:
+        base_day = datetime.now(TZ).date()
+    week_start = monday_for(base_day)
+    pdf = build_timesheet_pdf(employee.employee_name, week_start)
+    safe_name = ''.join(ch if ch.isalnum() else '_' for ch in employee.employee_name).strip('_') or 'employee'
+    filename = f'{safe_name}_timesheet_{week_start.isoformat()}.pdf'
+    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+
 
 @app.post('/admin/email-recipients')
 @admin_required
@@ -748,10 +889,6 @@ def health():
     return {'status': 'ok'}, 200
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=os.getenv('FLASK_DEBUG') == '1')
-
-
 @app.route("/privacy")
 def privacy_policy():
     return render_template("privacy.html")
@@ -759,3 +896,8 @@ def privacy_policy():
 @app.route("/terms")
 def terms_of_use():
     return render_template("terms.html")
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=os.getenv('FLASK_DEBUG') == '1')
+

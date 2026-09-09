@@ -89,3 +89,9 @@ For Twilio A2P registration, use your deployed app URL plus `/privacy`, for exam
 
 ## Admin employee timesheet view
 Employee names on the Admin dashboard are clickable. Admins can review current and historical weekly timesheets, totals, notes, and email status without signing in as the employee.
+
+## Admin employee timesheet upgrades
+
+The employee detail page now allows an authenticated admin to edit each day's total hours and notes. The application automatically recalculates the first 40 weekly hours as regular time and hours above 40 as overtime.
+
+Admins can also download the selected employee/week as a PDF from the employee detail page. Admin edits do not automatically resend previously emailed timesheets; use the existing resend control when a corrected current-week email is needed.
