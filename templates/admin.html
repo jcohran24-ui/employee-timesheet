@@ -14,48 +14,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-<div class="container py-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 mobile-header">
-    <div><h1 class="h3 mb-1">Timesheet Admin</h1><div class="text-secondary">Manage employee access and notifications</div></div>
-    <form class="logout-form" method="post" action="{{ url_for('admin_logout') }}"><button class="btn btn-outline-dark">Log Out</button></form>
-  </div>
-
-  {% with messages=get_flashed_messages(with_categories=true) %}
-    {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
-  {% endwith %}
-
-  <div class="admin-section-grid mb-4">
-    <section class="card shadow-sm admin-section-card">
-      <div class="card-body">
-        <div class="admin-section-heading">
-          <div>
-            <div class="admin-section-kicker">Notifications</div>
-            <h2 class="h5 mb-1">Timesheet Email Recipients</h2>
-          </div>
-        </div>
-        <form method="post" action="{{ url_for('admin_email_recipients') }}">
-          <label class="form-label">Send completed timesheets to</label>
-          <textarea class="form-control" name="recipients" rows="4" required>{{ recipients|join(', ') }}</textarea>
-          <div class="form-text">Separate addresses with commas, semicolons, or new lines.</div>
-          <button class="btn btn-primary mt-3 mobile-full-btn">Save Email Recipients</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="card shadow-sm admin-section-card">
-      <div class="card-body">
-        <div class="admin-section-heading">
-          <div>
-            <div class="admin-section-kicker">Employee Setup</div>
-            <h2 class="h5 mb-1">Add Employee</h2>
-          </div>
-        </div>
-        <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
-          <div class="col-12"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
-          <div class="col-md-7"><label class="form-label">Cell Phone</label><input class="form-control" name="phone_number" inputmode="tel" autocomplete="tel" placeholder="7705551234"></div>
-          <div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
+<div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
           <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="send_welcome_text" value="1" id="sendWelcome" checked><label class="form-check-label" for="sendWelcome">Send Welcome Text</label></div>
+            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="send_welcome_text" value="1" id="sendWelcome" checked></div>
             <button class="btn btn-primary admin-add-btn">Add Employee</button>
           </div>
         </form>
@@ -75,7 +36,7 @@
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 mobile-stack-table admin-employee-table">
-        <thead><tr><th>Employee</th><th>Status</th><th style="min-width:220px">Phone</th><th style="min-width:290px">Reset PIN / Text</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Status</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
         <tbody>
         {% for employee in employees %}
           <tr>
@@ -86,14 +47,13 @@
             </td>
             <td data-label="Phone">
               <form class="d-flex gap-2" method="post" action="{{ url_for('admin_update_phone', employee_id=employee.id) }}">
-                <input class="form-control form-control-sm" name="phone_number" inputmode="tel" value="{{ employee.phone_number or '' }}" placeholder="7705551234">
                 <button class="btn btn-sm btn-outline-secondary">Save</button>
               </form>
             </td>
             <td data-label="Reset PIN / Text">
               <form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}">
                 <div class="d-flex gap-2 mb-1"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div>
-                <div class="form-check"><input class="form-check-input" type="checkbox" name="send_login_text" value="1" id="sendText{{ employee.id }}"><label class="form-check-label small" for="sendText{{ employee.id }}">Text new PIN to employee</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" name="send_login_text" value="1" id="sendText{{ employee.id }}"></div>
               </form>
             </td>
             <td data-label="Access" class="action-cell"><form method="post" action="{{ url_for('admin_toggle_employee', employee_id=employee.id) }}"><button class="btn btn-sm {{ 'btn-outline-danger' if employee.active else 'btn-outline-success' }}">{{ 'Deactivate' if employee.active else 'Reactivate' }}</button></form></td>

@@ -152,16 +152,6 @@ def send_twilio_sms(to_number: str, message: str):
             raise RuntimeError(f'Twilio returned HTTP {response.status}')
 
 
-def send_login_text(employee_name: str, phone_number: str, temporary_pin: str):
-    message = (
-        'JC Timesheet\n'
-        f'Login: {employee_name}\n'
-        f'Temporary PIN: {temporary_pin}\n'
-        f'Open: {app_login_url()}\n'
-        'You will be required to create a new PIN after signing in.'
-    )
-    send_twilio_sms(phone_number, message)
-
 
 def valid_email(value: str) -> bool:
     value = (value or '').strip()
@@ -765,7 +755,6 @@ def admin_add_employee():
         flash(f'Account created for {employee_name}.', 'success')
         if send_text:
             try:
-                send_login_text(employee_name, phone_number, pin)
                 flash(f'Welcome text sent to {phone_number}.', 'success')
             except Exception:
                 app.logger.exception('Twilio welcome text failed')
@@ -901,7 +890,6 @@ def admin_reset_pin(employee_id):
         flash(f'Temporary PIN reset for {employee.employee_name}. They must choose a new PIN at next login.', 'success')
         if send_text:
             try:
-                send_login_text(employee.employee_name, employee.phone_number, pin)
                 flash(f'New login text sent to {employee.phone_number}.', 'success')
             except Exception:
                 app.logger.exception('Twilio reset PIN text failed')
