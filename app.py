@@ -817,9 +817,16 @@ def admin_settings():
     return redirect(url_for('admin_dashboard'))
 
 
-def build_bulk_timesheet_pdf(week_start: date):
+def selected_report_employees():
+    selected_ids = request.args.getlist('employee_id', type=int)
+    query = EmployeeAccount.query.order_by(EmployeeAccount.employee_name)
+    if selected_ids:
+        return query.filter(EmployeeAccount.id.in_(selected_ids)).all()
+    return []
+
+
+def build_bulk_timesheet_pdf(week_start: date, employees):
     week_end = week_start + timedelta(days=6)
-    employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30,
@@ -878,7 +885,11 @@ def build_bulk_timesheet_pdf(week_start: date):
 @admin_required
 def admin_bulk_weekly_pdf():
     week_start = selected_week_from_request()
-    pdf = build_bulk_timesheet_pdf(week_start)
+    employees = selected_report_employees()
+    if not employees:
+        flash('Select at least one employee for the bulk report.', 'warning')
+        return redirect(url_for('admin_dashboard', week=week_start.isoformat()))
+    pdf = build_bulk_timesheet_pdf(week_start, employees)
     return send_file(
         pdf, mimetype='application/pdf', as_attachment=True,
         download_name=f'weekly_timesheets_{week_start.isoformat()}.pdf'
@@ -889,7 +900,10 @@ def admin_bulk_weekly_pdf():
 @admin_required
 def admin_bulk_weekly_csv():
     week_start = selected_week_from_request()
-    employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
+    employees = selected_report_employees()
+    if not employees:
+        flash('Select at least one employee for the bulk report.', 'warning')
+        return redirect(url_for('admin_dashboard', week=week_start.isoformat()))
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(['Employee', 'Day', 'Date', 'Total Hours', 'Regular Hours', 'Overtime Hours', 'Notes'])

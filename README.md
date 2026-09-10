@@ -102,3 +102,8 @@ The employee timesheet, admin dashboard, and admin employee detail page automati
 - Employee search and sorting.
 - Combined weekly PDF and CSV exports.
 - Admin-editable company/app name, email recipients, overtime threshold, timezone, and weekly cutoff time.
+
+## Selected bulk reports
+The Admin weekly report section now lets the administrator choose exactly which employees are included in the combined PDF or CSV export. Active employees are selected by default, with Select All and Clear controls.
+
+The Admin summary bar is reduced to two compact metrics: Active Employees and Hours This Week.

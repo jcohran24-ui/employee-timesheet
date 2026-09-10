@@ -185,3 +185,55 @@ body {
   .admin-top-actions,.admin-top-actions>form{width:100%;}
   .admin-top-actions>form{display:grid!important;grid-template-columns:1fr auto;}
 }
+
+
+/* Compact top summary */
+.admin-summary-compact {
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  justify-content: start;
+  gap: .75rem;
+}
+.admin-summary-compact .summary-card .card-body {
+  padding: .75rem 1rem;
+}
+.admin-summary-compact .summary-label {
+  font-size: .7rem;
+}
+.admin-summary-compact .summary-number {
+  font-size: 1.45rem;
+  margin-top: .2rem;
+}
+
+/* Employee chooser for bulk reports */
+.bulk-employee-list {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: .5rem;
+  padding: .35rem;
+  background: #fff;
+}
+.bulk-employee-option {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .55rem .65rem;
+  margin: 0;
+  border-radius: .4rem;
+  cursor: pointer;
+}
+.bulk-employee-option:hover {
+  background: #f8f9fa;
+}
+.bulk-employee-option + .bulk-employee-option {
+  border-top: 1px solid #f0f1f2;
+}
+.bulk-employee-option .form-check-input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+@media (max-width: 767.98px) {
+  .admin-summary-compact {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

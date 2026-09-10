@@ -31,11 +31,19 @@
     {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
   {% endwith %}
 
-  <section class="admin-summary-grid mb-4">
-    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Active Employees</div><div class="summary-number">{{ summary.active_employees }}</div></div></div>
-    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Timesheets This Week</div><div class="summary-number">{{ summary.timesheets_this_week }}</div></div></div>
-    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Missing Timesheets</div><div class="summary-number">{{ summary.missing_timesheets }}</div></div></div>
-    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Hours This Week</div><div class="summary-number">{{ '%.2f'|format(summary.hours_this_week) }}</div></div></div>
+  <section class="admin-summary-grid admin-summary-compact mb-3">
+    <div class="card shadow-sm summary-card">
+      <div class="card-body">
+        <div class="summary-label">Active Employees</div>
+        <div class="summary-number">{{ summary.active_employees }}</div>
+      </div>
+    </div>
+    <div class="card shadow-sm summary-card">
+      <div class="card-body">
+        <div class="summary-label">Hours This Week</div>
+        <div class="summary-number">{{ '%.2f'|format(summary.hours_this_week) }}</div>
+      </div>
+    </div>
   </section>
 
   <div class="admin-section-grid mb-4">
@@ -54,12 +62,46 @@
     <section class="card shadow-sm admin-section-card">
       <div class="card-body">
         <div class="admin-section-kicker">Weekly Reports</div>
-        <h2 class="h5 mb-3">Bulk Download</h2>
-        <div class="text-secondary mb-3">All entered timesheets for the selected week.</div>
-        <div class="d-grid gap-2">
-          <a class="btn btn-primary" href="{{ url_for('admin_bulk_weekly_pdf', week=week_start.isoformat()) }}">Download Combined PDF</a>
-          <a class="btn btn-outline-primary" href="{{ url_for('admin_bulk_weekly_csv', week=week_start.isoformat()) }}">Download CSV Export</a>
-        </div>
+        <h2 class="h5 mb-2">Bulk Download</h2>
+        <div class="text-secondary small mb-3">Choose the employees to include for the selected week.</div>
+
+        <form method="get" id="bulkReportForm">
+          <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
+
+          <div class="bulk-employee-toolbar d-flex flex-wrap gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllReports">Select All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllReports">Clear</button>
+            <span class="small text-secondary align-self-center" id="selectedReportCount"></span>
+          </div>
+
+          <div class="bulk-employee-list mb-3">
+            {% for employee in employees %}
+            <label class="bulk-employee-option">
+              <input class="form-check-input bulk-report-employee" type="checkbox"
+                     name="employee_id" value="{{ employee.id }}" {% if employee.active %}checked{% endif %}>
+              <span>
+                <strong>{{ employee.employee_name }}</strong>
+                {% if employee.active %}
+                  <span class="badge text-bg-success ms-1">Active</span>
+                {% else %}
+                  <span class="badge text-bg-secondary ms-1">Inactive</span>
+                {% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary"
+                    formaction="{{ url_for('admin_bulk_weekly_pdf') }}">
+              Download Selected PDF
+            </button>
+            <button class="btn btn-outline-primary"
+                    formaction="{{ url_for('admin_bulk_weekly_csv') }}">
+              Download Selected CSV
+            </button>
+          </div>
+        </form>
       </div>
     </section>
   </div>
@@ -139,6 +181,39 @@
   search.addEventListener('input', refresh);
   sort.addEventListener('change', refresh);
 })();
+</script>
+<script>
+
+(function () {
+  const boxes = Array.from(document.querySelectorAll('.bulk-report-employee'));
+  const selectAll = document.getElementById('selectAllReports');
+  const clearAll = document.getElementById('clearAllReports');
+  const count = document.getElementById('selectedReportCount');
+
+  function updateCount() {
+    if (!count) return;
+    const selected = boxes.filter(box => box.checked).length;
+    count.textContent = selected + ' selected';
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = true);
+      updateCount();
+    });
+  }
+
+  if (clearAll) {
+    clearAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = false);
+      updateCount();
+    });
+  }
+
+  boxes.forEach(box => box.addEventListener('change', updateCount));
+  updateCount();
+})();
+
 </script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
