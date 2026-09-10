@@ -131,3 +131,6 @@ The HireQuest export now uses the actual uploaded PDF ticket rather than the scr
 
 ## HireQuest hour alignment
 The HireQuest daily-hour values were moved slightly lower inside the employee row so they are centered in the time cells and no longer overlap the weekday header labels.
+
+## HireQuest signature and download date
+The HireQuest PDF now places the saved signature image above the AUTHORIZED SIGNATURE line and prints the current download date beside the signature.

@@ -895,6 +895,20 @@ def admin_employee_hirequest_pdf(employee_id):
         total_display = str(int(total_hours)) if float(total_hours).is_integer() else f'{total_hours:.2f}'.rstrip('0').rstrip('.')
         overlay.drawCentredString(584, hour_baseline, total_display)
 
+    # Place saved signature above the AUTHORIZED SIGNATURE area and stamp today's date beside it.
+    signature_path = os.path.join(app.root_path, 'static', 'signature.png')
+    if os.path.exists(signature_path):
+        try:
+            overlay.drawImage(signature_path, 18, 24, width=128, height=32, mask='auto', preserveAspectRatio=True, anchor='sw')
+        except Exception:
+            pass
+
+    overlay.setFillColor(colors.white)
+    overlay.rect(150, 25, 92, 18, fill=1, stroke=0)
+    overlay.setFillColor(colors.black)
+    overlay.setFont('Helvetica', 9)
+    overlay.drawString(154, 31, date.today().strftime('%m/%d/%Y'))
+
     overlay.save()
     overlay_buffer.seek(0)
 
