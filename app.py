@@ -704,25 +704,137 @@ def admin_save_employee_timesheet(employee_id):
     return redirect(url_for('admin_employee_timesheet', employee_id=employee_id, week=week_start.isoformat()))
 
 
+
+def pdf_job_info_from_request():
+    fields = {
+        'customer': (request.args.get('customer') or '').strip(),
+        'job_site': (request.args.get('job_site') or '').strip(),
+        'job_address': (request.args.get('job_address') or '').strip(),
+        'report_to': (request.args.get('report_to') or '').strip(),
+        'report_phone': (request.args.get('report_phone') or '').strip(),
+        'report_time': (request.args.get('report_time') or '').strip(),
+        'duties': (request.args.get('duties') or '').strip(),
+        'order_number': (request.args.get('order_number') or '').strip(),
+        'customer_id': (request.args.get('customer_id') or '').strip(),
+        'time_slip': (request.args.get('time_slip') or '').strip(),
+        'customer_po': (request.args.get('customer_po') or '').strip(),
+        'ticket_date': (request.args.get('ticket_date') or '').strip(),
+        'provider_branch': (request.args.get('provider_branch') or '').strip(),
+        'provider_phone': (request.args.get('provider_phone') or '').strip(),
+    }
+    return {k: v for k, v in fields.items() if v}
+
+
 @app.get('/admin/employee/<int:employee_id>/timesheet/pdf')
 @admin_required
 def admin_employee_timesheet_pdf(employee_id):
     employee = db.session.get(EmployeeAccount, employee_id)
     if not employee:
-        flash('Employee not found.', 'danger')
-        return redirect(url_for('admin_dashboard'))
+        abort(404)
 
-    requested = request.args.get('week')
-    try:
-        base_day = date.fromisoformat(requested) if requested else datetime.now(app_timezone()).date()
-    except ValueError:
-        base_day = datetime.now(app_timezone()).date()
-    week_start = monday_for(base_day)
-    pdf = build_timesheet_pdf(employee.employee_name, week_start)
-    safe_name = ''.join(ch if ch.isalnum() else '_' for ch in employee.employee_name).strip('_') or 'employee'
-    filename = f'{safe_name}_timesheet_{week_start.isoformat()}.pdf'
-    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+    week_start = selected_week_from_request()
+    week_end = week_start + timedelta(days=6)
+    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+    total_hours = total_regular + total_overtime
+    job_info = pdf_job_info_from_request()
 
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter, rightMargin=32, leftMargin=32,
+        topMargin=30, bottomMargin=30,
+        title=f'{employee.employee_name} Timesheet'
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    company_name = get_setting('company_name', 'JC Timesheet')
+    story.append(Paragraph(company_name, styles['Title']))
+    story.append(Paragraph(f'{employee.employee_name} - Weekly Timesheet', styles['Heading2']))
+    story.append(Paragraph(
+        f'Week: {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}',
+        styles['BodyText']
+    ))
+    story.append(Spacer(1, 10))
+
+    if job_info:
+        labels = [
+            ('customer', 'Customer'),
+            ('job_site', 'Job Site'),
+            ('job_address', 'Job Address'),
+            ('report_to', 'Report To'),
+            ('report_phone', 'Report Phone'),
+            ('report_time', 'Report Time'),
+            ('duties', 'Duties'),
+            ('order_number', 'Order Number'),
+            ('customer_id', 'Customer ID'),
+            ('time_slip', 'Time Slip'),
+            ('customer_po', 'Customer P.O.'),
+            ('ticket_date', 'Ticket Date'),
+            ('provider_branch', 'Provider / Branch'),
+            ('provider_phone', 'Provider Phone'),
+        ]
+        info_rows, current = [], []
+        for key, label in labels:
+            if key in job_info:
+                safe_val = job_info[key].replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                current += [
+                    Paragraph(f'<b>{label}</b>', styles['BodyText']),
+                    Paragraph(safe_val, styles['BodyText'])
+                ]
+                if len(current) == 4:
+                    info_rows.append(current)
+                    current = []
+        if current:
+            while len(current) < 4:
+                current.append('')
+            info_rows.append(current)
+
+        info_table = Table(info_rows, colWidths=[78, 185, 78, 185])
+        info_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.4, colors.HexColor('#d7dce2')),
+            ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#f3f5f7')),
+            ('BACKGROUND', (2,0), (2,-1), colors.HexColor('#f3f5f7')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story += [info_table, Spacer(1, 14)]
+
+    data = [['Day', 'Date', 'Total', 'Regular', 'OT', 'Notes']]
+    for r in rows:
+        notes = (r['notes'] or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+        data.append([
+            r['date'].strftime('%A'),
+            r['date'].strftime('%m/%d/%Y'),
+            f"{r['total']:.2f}",
+            f"{r['regular']:.2f}",
+            f"{r['overtime']:.2f}",
+            Paragraph(notes or '-', styles['BodyText']),
+        ])
+    data.append(['Totals', '', f'{total_hours:.2f}', f'{total_regular:.2f}', f'{total_overtime:.2f}', ''])
+
+    table = Table(data, colWidths=[66, 66, 48, 54, 42, 246], repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d6efd')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('GRID', (0,0), (-1,-1), 0.4, colors.HexColor('#cccccc')),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (2,1), (4,-1), 'RIGHT'),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#e9ecef')),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(table)
+    doc.build(story)
+    buffer.seek(0)
+
+    safe_name = re.sub(r'[^A-Za-z0-9_-]+', '_', employee.employee_name).strip('_') or 'employee'
+    return send_file(
+        buffer, mimetype='application/pdf', as_attachment=True,
+        download_name=f'{safe_name}_timesheet_{week_start.isoformat()}.pdf'
+    )
 
 @app.post('/admin/email-recipients')
 @admin_required

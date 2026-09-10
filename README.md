@@ -107,3 +107,6 @@ The employee timesheet, admin dashboard, and admin employee detail page automati
 The Admin weekly report section now lets the administrator choose exactly which employees are included in the combined PDF or CSV export. Active employees are selected by default, with Select All and Clear controls.
 
 The Admin summary bar is reduced to two compact metrics: Active Employees and Hours This Week.
+
+## Optional job information on PDF
+Admins can optionally add work-order/ticket information before downloading an employee PDF. The fields are prefilled with the sample ticket values and can be edited or cleared. They apply only to that PDF download and do not alter the saved timesheet.
