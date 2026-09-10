@@ -110,3 +110,9 @@ The Admin summary bar is reduced to two compact metrics: Active Employees and Ho
 
 ## Optional job information on PDF
 Admins can optionally add work-order/ticket information before downloading an employee PDF. The fields are prefilled with the sample ticket values and can be edited or cleared. They apply only to that PDF download and do not alter the saved timesheet.
+
+## NewSouth PDF
+The Admin employee detail page now includes a NewSouth PDF option. It pulls that employee's saved weekly hours, uses the selected week's Monday-Sunday dates in the table headers, and fills daily Regular and OT rows. The default Job # is 25.562. Vicente defaults to CC# 011025.5 and Maria defaults to CC# 011501.5; the fields can still be edited before download.
+
+## Multi-employee NewSouth PDF
+The Admin dashboard now includes a NewSouth section where multiple employees can be selected and exported into one PDF. Each selected employee receives a separate NewSouth table/page using that employee's saved hours and the selected week's dates. Maria defaults to CC# 011501.5 and Vicente defaults to CC# 011025.5.

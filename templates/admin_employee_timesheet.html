@@ -34,11 +34,11 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
         <div class="text-secondary small">PDF Options</div>
-        <h2 class="h5 mb-0">Job / Work Order Information</h2>
+        <h2 class="h5 mb-0">HireQuest</h2>
       </div>
       <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse"
               data-bs-target="#pdfJobInfo" aria-expanded="false">
-        Add Job Information
+        HireQuest
       </button>
     </div>
 
@@ -68,10 +68,10 @@
         </div>
 
         <div class="d-flex flex-wrap gap-2 mt-3">
-          <button class="btn btn-primary" type="submit">Download PDF With Job Info</button>
+          <button class="btn btn-primary" type="submit">Download HireQuest PDF</button>
           <a class="btn btn-outline-secondary"
              href="{{ url_for('admin_employee_timesheet_pdf', employee_id=employee.id, week=week_start.isoformat()) }}">
-             Download PDF Without Job Info
+             Download Standard PDF
           </a>
         </div>
       </form>
@@ -82,7 +82,47 @@
     </div>
   </div>
 
-  <div class="d-flex justify-content-between mb-3 week-nav">
+  
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <div class="text-secondary small">PDF Options</div>
+        <h2 class="h5 mb-0">NewSouth</h2>
+      </div>
+      <button class="btn btn-outline-primary" type="button"
+              data-bs-toggle="collapse" data-bs-target="#newSouthPdf"
+              aria-expanded="false" aria-controls="newSouthPdf">
+        NewSouth
+      </button>
+    </div>
+
+    <div class="collapse mt-3" id="newSouthPdf">
+      <form method="get" action="{{ url_for('admin_employee_newsouth_pdf', employee_id=employee.id) }}">
+        <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Job #</label>
+            <input class="form-control" name="job_number" value="25.562">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">CC#</label>
+            <input class="form-control" name="cc_number"
+              value="{% if 'vicente' in employee.employee_name|lower %}011025.5{% elif 'maria' in employee.employee_name|lower %}011501.5{% endif %}">
+          </div>
+        </div>
+
+        <div class="small text-secondary mt-2">
+          Dates and daily Regular/OT hours are pulled automatically from the week shown above.
+        </div>
+
+        <button class="btn btn-primary mt-3" type="submit">Download NewSouth PDF</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between mb-3 week-nav">
     <a class="btn btn-outline-primary" href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=prev_week.isoformat()) }}">&larr; Previous Week</a>
     <a class="btn btn-outline-primary" href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=next_week.isoformat()) }}">Next Week &rarr;</a>
   </div>

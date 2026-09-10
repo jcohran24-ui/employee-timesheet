@@ -837,6 +837,344 @@ def admin_employee_timesheet_pdf(employee_id):
         download_name=f'{safe_name}_timesheet_{week_start.isoformat()}.pdf'
     )
 
+
+def newsouth_default_cc(employee_name: str):
+    key = (employee_name or '').strip().casefold()
+    if 'vicente' in key:
+        return '011025.5'
+    if 'maria' in key:
+        return '011501.5'
+    return ''
+
+
+@app.get('/admin/employee/<int:employee_id>/timesheet/newsouth.pdf')
+@admin_required
+def admin_employee_newsouth_pdf(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        abort(404)
+
+    week_start = selected_week_from_request()
+    week_end = week_start + timedelta(days=6)
+    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+
+    job_number = (request.args.get('job_number') or '25.562').strip()
+    cc_number = (request.args.get('cc_number') or newsouth_default_cc(employee.employee_name)).strip()
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=26,
+        leftMargin=26,
+        topMargin=24,
+        bottomMargin=24,
+        title=f'NewSouth Timesheet - {employee.employee_name}'
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'NSTitle', parent=styles['Heading1'], fontName='Helvetica-Bold',
+        fontSize=15, leading=17, spaceAfter=4
+    )
+    small = ParagraphStyle(
+        'NSSmall', parent=styles['BodyText'], fontSize=8.5, leading=10
+    )
+    small_center = ParagraphStyle(
+        'NSSmallCenter', parent=small, alignment=TA_CENTER
+    )
+
+    story = [
+        Paragraph('NEW SOUTH CONSTRUCTION COMPANY', title_style),
+    ]
+
+    header_data = [
+        [
+            Paragraph(f'<b>WEEK:</b> {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}', small),
+            Paragraph('<b>APPROVALS</b>', small_center),
+        ],
+        [
+            Paragraph(f'<b>EMPLOYEE (FULL NAME):</b> {employee.employee_name}', small),
+            Paragraph('VP __________________   PM __________________<br/>SUPERINTENDENT __________________', small),
+        ],
+    ]
+    header_table = Table(header_data, colWidths=[360, 180])
+    header_table.setStyle(TableStyle([
+        ('GRID', (1,0), (1,-1), 0.8, colors.black),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story += [header_table, Spacer(1, 14)]
+
+    day_headers = []
+    for r in rows:
+        day_headers.append(
+            Paragraph(
+                f'<b>{r["date"].strftime("%a").upper()}</b><br/>{r["date"].strftime("%m/%d")}',
+                small_center
+            )
+        )
+
+    table_data = [
+        [
+            Paragraph('<b>JOB #</b>', small_center),
+            Paragraph('<b>CC#</b>', small_center),
+            *day_headers,
+            Paragraph('<b>TOTALS BY JOB</b>', small_center),
+            ''
+        ],
+        [
+            '', '',
+            *[Paragraph('<b>Reg</b><br/>OT', small_center) for _ in range(7)],
+            Paragraph('<b>REG</b>', small_center),
+            Paragraph('<b>OT</b>', small_center),
+        ],
+        [
+            Paragraph(job_number or '-', small_center),
+            Paragraph(cc_number or '-', small_center),
+            *[f'{r["regular"]:.2f}' if r["regular"] else '' for r in rows],
+            f'{total_regular:.2f}',
+            f'{total_overtime:.2f}',
+        ],
+        [
+            '',
+            Paragraph('<b>OT</b>', small_center),
+            *[f'{r["overtime"]:.2f}' if r["overtime"] else '0' for r in rows],
+            '',
+            f'{total_overtime:.2f}',
+        ],
+    ]
+
+    # Add six blank rows to match the NewSouth paper layout.
+    for _ in range(6):
+        table_data.append(['', '', '', '', '', '', '', '', '', '', ''])
+
+    table_data.append([
+        Paragraph('<b>DAILY TOTALS</b>', small_center), '',
+        *[f'{r["total"]:.2f}' if r["total"] else '0' for r in rows],
+        f'{total_regular + total_overtime:.2f}',
+        f'{total_overtime:.2f}',
+    ])
+
+    col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
+    ns_table = Table(table_data, colWidths=col_widths, rowHeights=[28, 28, 34, 30] + [28]*6 + [30])
+    yellow = colors.HexColor('#FFF98A')
+    ns_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.7, colors.black),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,2), (-1,-1), 9),
+        ('BACKGROUND', (2,0), (8,0), yellow),
+        ('BACKGROUND', (9,0), (10,0), yellow),
+        ('BACKGROUND', (10,1), (10,-1), yellow),
+        ('BACKGROUND', (2,-1), (10,-1), yellow),
+        ('SPAN', (0,0), (0,1)),
+        ('SPAN', (1,0), (1,1)),
+        ('SPAN', (9,0), (10,0)),
+        ('SPAN', (0,-1), (1,-1)),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(ns_table)
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        f'Regular Hours: {total_regular:.2f} &nbsp;&nbsp;&nbsp; '
+        f'Overtime Hours: {total_overtime:.2f} &nbsp;&nbsp;&nbsp; '
+        f'Total Hours: {total_regular + total_overtime:.2f}',
+        small
+    ))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    safe_name = re.sub(r'[^A-Za-z0-9_-]+', '_', employee.employee_name).strip('_') or 'employee'
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'NewSouth_{safe_name}_{week_start.isoformat()}.pdf'
+    )
+
+
+
+def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_number=''):
+    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+    styles = getSampleStyleSheet()
+    small = ParagraphStyle('NSSmallMulti', parent=styles['BodyText'], fontSize=8.3, leading=10)
+    small_center = ParagraphStyle('NSSmallCenterMulti', parent=small, alignment=TA_CENTER)
+
+    day_headers = [
+        Paragraph(
+            f'<b>{r["date"].strftime("%a").upper()}</b><br/>{r["date"].strftime("%m/%d")}',
+            small_center
+        )
+        for r in rows
+    ]
+
+    table_data = [
+        [
+            Paragraph('<b>JOB #</b>', small_center),
+            Paragraph('<b>CC#</b>', small_center),
+            *day_headers,
+            Paragraph('<b>TOTALS BY JOB</b>', small_center),
+            ''
+        ],
+        [
+            '', '',
+            *[Paragraph('<b>Reg</b><br/>OT', small_center) for _ in range(7)],
+            Paragraph('<b>REG</b>', small_center),
+            Paragraph('<b>OT</b>', small_center),
+        ],
+        [
+            Paragraph(job_number or '-', small_center),
+            Paragraph(cc_number or '-', small_center),
+            *[f'{r["regular"]:.2f}' if r["regular"] else '' for r in rows],
+            f'{total_regular:.2f}',
+            f'{total_overtime:.2f}',
+        ],
+        [
+            '',
+            Paragraph('<b>OT</b>', small_center),
+            *[f'{r["overtime"]:.2f}' if r["overtime"] else '0' for r in rows],
+            '',
+            f'{total_overtime:.2f}',
+        ],
+    ]
+
+    for _ in range(6):
+        table_data.append(['', '', '', '', '', '', '', '', '', '', ''])
+
+    table_data.append([
+        Paragraph('<b>DAILY TOTALS</b>', small_center), '',
+        *[f'{r["total"]:.2f}' if r["total"] else '0' for r in rows],
+        f'{total_regular + total_overtime:.2f}',
+        f'{total_overtime:.2f}',
+    ])
+
+    col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
+    table = Table(table_data, colWidths=col_widths, rowHeights=[28, 28, 34, 30] + [28]*6 + [30])
+    yellow = colors.HexColor('#FFF98A')
+    table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.7, colors.black),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,2), (-1,-1), 9),
+        ('BACKGROUND', (2,0), (8,0), yellow),
+        ('BACKGROUND', (9,0), (10,0), yellow),
+        ('BACKGROUND', (10,1), (10,-1), yellow),
+        ('BACKGROUND', (2,-1), (10,-1), yellow),
+        ('SPAN', (0,0), (0,1)),
+        ('SPAN', (1,0), (1,1)),
+        ('SPAN', (9,0), (10,0)),
+        ('SPAN', (0,-1), (1,-1)),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+    ]))
+    return table, rows, total_regular, total_overtime
+
+
+@app.get('/admin/reports/newsouth.pdf')
+@admin_required
+def admin_newsouth_multi_pdf():
+    week_start = selected_week_from_request()
+    week_end = week_start + timedelta(days=6)
+
+    selected_ids = request.args.getlist('employee_id', type=int)
+    if not selected_ids:
+        flash('Select at least one employee for the NewSouth PDF.', 'warning')
+        return redirect(url_for('admin_dashboard', week=week_start.isoformat()))
+
+    employees = (
+        EmployeeAccount.query
+        .filter(EmployeeAccount.id.in_(selected_ids))
+        .order_by(EmployeeAccount.employee_name)
+        .all()
+    )
+    if not employees:
+        flash('No selected employees were found.', 'warning')
+        return redirect(url_for('admin_dashboard', week=week_start.isoformat()))
+
+    job_number = (request.args.get('job_number') or '25.562').strip()
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=26,
+        leftMargin=26,
+        topMargin=24,
+        bottomMargin=24,
+        title=f'NewSouth Timesheets {week_start.isoformat()}'
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'NSMultiTitle', parent=styles['Heading1'], fontName='Helvetica-Bold',
+        fontSize=15, leading=17, spaceAfter=4
+    )
+    small = ParagraphStyle(
+        'NSMultiSmall', parent=styles['BodyText'], fontSize=8.5, leading=10
+    )
+    small_center = ParagraphStyle(
+        'NSMultiSmallCenter', parent=small, alignment=TA_CENTER
+    )
+
+    story = []
+    for idx, employee in enumerate(employees):
+        cc_number = newsouth_default_cc(employee.employee_name)
+
+        story.append(Paragraph('NEW SOUTH CONSTRUCTION COMPANY', title_style))
+        header_data = [
+            [
+                Paragraph(
+                    f'<b>WEEK:</b> {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}',
+                    small
+                ),
+                Paragraph('<b>APPROVALS</b>', small_center),
+            ],
+            [
+                Paragraph(f'<b>EMPLOYEE (FULL NAME):</b> {employee.employee_name}', small),
+                Paragraph('VP __________________   PM __________________<br/>SUPERINTENDENT __________________', small),
+            ],
+        ]
+        header_table = Table(header_data, colWidths=[360, 180])
+        header_table.setStyle(TableStyle([
+            ('GRID', (1,0), (1,-1), 0.8, colors.black),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story += [header_table, Spacer(1, 14)]
+
+        ns_table, rows, total_regular, total_overtime = build_newsouth_employee_table(
+            employee, week_start, job_number, cc_number
+        )
+        story.append(ns_table)
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            f'Regular Hours: {total_regular:.2f} &nbsp;&nbsp;&nbsp; '
+            f'Overtime Hours: {total_overtime:.2f} &nbsp;&nbsp;&nbsp; '
+            f'Total Hours: {total_regular + total_overtime:.2f}',
+            small
+        ))
+
+        if idx < len(employees) - 1:
+            story.append(PageBreak())
+
+    doc.build(story)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'NewSouth_Selected_{week_start.isoformat()}.pdf'
+    )
+
+
 @app.post('/admin/email-recipients')
 @admin_required
 def admin_email_recipients():

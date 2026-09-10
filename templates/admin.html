@@ -106,7 +106,55 @@
     </section>
   </div>
 
-  <section class="card shadow-sm admin-section-card mb-4">
+  
+<section class="card shadow-sm admin-section-card mb-4">
+  <div class="card-body">
+    <div class="admin-section-kicker">NewSouth</div>
+    <h2 class="h5 mb-2">NewSouth PDF</h2>
+    <div class="text-secondary small mb-3">
+      Select one or more employees to place on one PDF. Each employee prints on their own NewSouth table.
+    </div>
+
+    <form method="get" action="{{ url_for('admin_newsouth_multi_pdf') }}">
+      <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
+
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Job #</label>
+          <input class="form-control" name="job_number" value="25.562">
+        </div>
+      </div>
+
+      <div class="bulk-employee-toolbar d-flex flex-wrap gap-2 mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllNewSouth">Select All</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllNewSouth">Clear</button>
+        <span class="small text-secondary align-self-center" id="selectedNewSouthCount"></span>
+      </div>
+
+      <div class="bulk-employee-list mb-3">
+        {% for employee in employees %}
+        <label class="bulk-employee-option">
+          <input class="form-check-input newsouth-employee" type="checkbox"
+                 name="employee_id" value="{{ employee.id }}"
+                 {% if 'maria' in employee.employee_name|lower or 'vicente' in employee.employee_name|lower %}checked{% endif %}>
+          <span>
+            <strong>{{ employee.employee_name }}</strong>
+            {% if 'vicente' in employee.employee_name|lower %}
+              <span class="small text-secondary ms-2">CC# 011025.5</span>
+            {% elif 'maria' in employee.employee_name|lower %}
+              <span class="small text-secondary ms-2">CC# 011501.5</span>
+            {% endif %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <button class="btn btn-primary" type="submit">Download NewSouth PDF</button>
+    </form>
+  </div>
+</section>
+
+<section class="card shadow-sm admin-section-card mb-4">
     <div class="card-body">
       <div class="admin-section-kicker">Application Settings</div>
       <h2 class="h5 mb-3">Admin Settings</h2>
@@ -215,6 +263,38 @@
 })();
 
 </script>
+
+<script>
+(function () {
+  const boxes = Array.from(document.querySelectorAll('.newsouth-employee'));
+  const selectAll = document.getElementById('selectAllNewSouth');
+  const clearAll = document.getElementById('clearAllNewSouth');
+  const count = document.getElementById('selectedNewSouthCount');
+
+  function updateCount() {
+    if (!count) return;
+    count.textContent = boxes.filter(box => box.checked).length + ' selected';
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = true);
+      updateCount();
+    });
+  }
+
+  if (clearAll) {
+    clearAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = false);
+      updateCount();
+    });
+  }
+
+  boxes.forEach(box => box.addEventListener('change', updateCount));
+  updateCount();
+})();
+</script>
+
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
