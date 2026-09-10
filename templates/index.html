@@ -15,11 +15,11 @@
 </head>
 <body>
 <div class="container py-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 mobile-header">
     <div><h1 class="h3 mb-1">Weekly Timesheet</h1><div class="fw-semibold">{{ employee_name }}</div><div class="text-secondary">{{ week_start.strftime('%b %d, %Y') }} - {{ week_end.strftime('%b %d, %Y') }}</div></div>
     <div class="d-flex flex-wrap gap-2">
       <div class="btn-group"><a class="btn btn-outline-secondary" href="/?week={{ prev_week.isoformat() }}">Previous</a><a class="btn btn-outline-secondary" href="/">Current Week</a><a class="btn btn-outline-secondary" href="/?week={{ next_week.isoformat() }}">Next</a></div>
-      <form method="post" action="{{ url_for('logout') }}"><button class="btn btn-outline-dark" type="submit">Log Out</button></form>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}"><button class="btn btn-outline-dark" type="submit">Log Out</button></form>
     </div>
   </div>
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
@@ -30,17 +30,17 @@
 
   <form method="post" action="/save">
     <input type="hidden" name="week_start" value="{{ week_start.isoformat() }}">
-    <div class="card shadow-sm"><div class="table-responsive"><table class="table table-striped align-middle mb-0">
+    <div class="card shadow-sm"><div class="table-responsive"><table class="table table-striped align-middle mb-0 mobile-stack-table">
       <thead><tr><th>Day</th><th>Date</th><th style="min-width:140px">Hours Worked</th><th style="min-width:115px">Regular</th><th style="min-width:115px">Overtime</th><th style="min-width:260px">Notes / Work Performed</th></tr></thead>
       <tbody>{% for row in rows %}<tr>
-        <td class="fw-semibold">{{ row.date.strftime('%A') }}</td>
-        <td>{{ row.date.strftime('%m/%d') }}</td>
-        <td><input class="form-control total-hours" type="number" step="0.25" min="0" max="24" name="total_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.total) }}"></td>
-        <td class="regular-display fw-semibold">{{ '%.2f'|format(row.regular) }}</td>
-        <td class="overtime-display fw-semibold">{{ '%.2f'|format(row.overtime) }}</td>
-        <td><input class="form-control" type="text" maxlength="500" name="notes_{{ row.date.isoformat() }}" value="{{ row.notes }}" placeholder="Optional"></td>
+        <td class="fw-semibold mobile-day">{{ row.date.strftime('%A') }}</td>
+        <td data-label="Date">{{ row.date.strftime('%m/%d') }}</td>
+        <td data-label="Hours Worked"><input class="form-control total-hours" type="number" step="0.25" min="0" max="24" name="total_{{ row.date.isoformat() }}" value="{{ '%.2f'|format(row.total) }}"></td>
+        <td data-label="Regular" class="regular-display fw-semibold">{{ '%.2f'|format(row.regular) }}</td>
+        <td data-label="Overtime" class="overtime-display fw-semibold">{{ '%.2f'|format(row.overtime) }}</td>
+        <td data-label="Notes / Work Performed"><input class="form-control" type="text" maxlength="500" name="notes_{{ row.date.isoformat() }}" value="{{ row.notes }}" placeholder="Optional"></td>
       </tr>{% endfor %}</tbody>
-      <tfoot><tr class="table-dark"><th colspan="3">Weekly Totals</th><th id="regular-total">{{ '%.2f'|format(total_regular) }}</th><th id="overtime-total">{{ '%.2f'|format(total_overtime) }}</th><th><span class="me-2">Total:</span><span id="grand-total">{{ '%.2f'|format(grand_total) }}</span></th></tr></tfoot>
+      <tfoot><tr class="table-dark"><th colspan="3" class="mobile-total-label">Weekly Totals</th><th data-label="Regular" id="regular-total">{{ '%.2f'|format(total_regular) }}</th><th data-label="Overtime" id="overtime-total">{{ '%.2f'|format(total_overtime) }}</th><th data-label="Total"><span class="me-2 d-none d-md-inline">Total:</span><span id="grand-total">{{ '%.2f'|format(grand_total) }}</span></th></tr></tfoot>
     </table></div></div>
     <div class="d-grid d-sm-flex justify-content-sm-end mt-3"><button class="btn btn-primary btn-lg px-5" type="submit">Save Timesheet</button></div>
   </form>
