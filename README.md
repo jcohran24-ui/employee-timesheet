@@ -122,3 +122,6 @@ The multi-employee NewSouth report is compressed so two selected employees, such
 
 ## Revised NewSouth one-page spacing
 The NewSouth multi-employee PDF uses a clearly larger blank gap between employee tables. Unused blank entry rows inside each table were reduced so two employee tables still fit on one letter-size page. The Admin page remains on the earlier layout.
+
+## HireQuest ticket template export
+The HireQuest option now uses the supplied HireQuest Direct ticket image as the PDF background. The selected employee's Monday-Sunday total hours are written into the first employee row, the weekly total is calculated, and the ticket DATE field is changed to the selected week's Monday. All other printed ticket information remains unchanged.

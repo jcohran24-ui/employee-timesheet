@@ -17,6 +17,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 import re
 
 app = Flask(__name__)
@@ -835,6 +837,76 @@ def admin_employee_timesheet_pdf(employee_id):
     return send_file(
         buffer, mimetype='application/pdf', as_attachment=True,
         download_name=f'{safe_name}_timesheet_{week_start.isoformat()}.pdf'
+    )
+
+
+
+def hirequest_employee_display_name(employee_name: str):
+    parts = [p for p in (employee_name or '').strip().split() if p]
+    if len(parts) >= 2:
+        return f'{parts[-1].upper()}, {" ".join(parts[:-1]).upper()}'
+    return (employee_name or '').upper()
+
+
+@app.get('/admin/employee/<int:employee_id>/timesheet/hirequest.pdf')
+@admin_required
+def admin_employee_hirequest_pdf(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        abort(404)
+
+    week_start = selected_week_from_request()
+    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+    daily_hours = [float(r['total'] or 0) for r in rows]
+    total_hours = sum(daily_hours)
+
+    template_path = os.path.join(app.root_path, 'static', 'hirequest_ticket.png')
+    if not os.path.exists(template_path):
+        abort(500, description='HireQuest ticket template is missing.')
+
+    # Match the supplied HireQuest ticket image exactly: 768 x 522 points.
+    page_width, page_height = 768, 522
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
+    pdf.setTitle(f'HireQuest Timesheet - {employee.employee_name}')
+    pdf.drawImage(ImageReader(template_path), 0, 0, width=page_width, height=page_height)
+
+    # Replace the original ticket date with the Monday of the selected week.
+    pdf.setFillColor(colors.white)
+    pdf.rect(450, page_height - 76, 91, 21, fill=1, stroke=0)
+    pdf.setFillColor(colors.black)
+    pdf.setFont('Helvetica', 10)
+    pdf.drawString(455, page_height - 70, week_start.strftime('%-m/%-d/%Y'))
+
+    # Keep the supplied layout but allow the employee name to match the selected employee.
+    pdf.setFillColor(colors.white)
+    pdf.rect(263, page_height - 218, 218, 23, fill=1, stroke=0)
+    pdf.setFillColor(colors.black)
+    pdf.setFont('Helvetica', 13)
+    pdf.drawString(266, page_height - 212, hirequest_employee_display_name(employee.employee_name))
+
+    # Daily hour cells on the first employee row: Monday through Sunday, then weekly total.
+    hour_centers = [498, 531, 565, 599, 632, 665, 699]
+    hour_baseline = page_height - 212
+    pdf.setFont('Helvetica-Bold', 10)
+    for x, value in zip(hour_centers, daily_hours):
+        display = '' if abs(value) < 0.001 else (str(int(value)) if float(value).is_integer() else f'{value:.2f}'.rstrip('0').rstrip('.'))
+        if display:
+            pdf.drawCentredString(x, hour_baseline, display)
+
+    total_display = str(int(total_hours)) if float(total_hours).is_integer() else f'{total_hours:.2f}'.rstrip('0').rstrip('.')
+    if total_display != '0':
+        pdf.drawCentredString(742, hour_baseline, total_display)
+
+    pdf.save()
+    buffer.seek(0)
+
+    safe_name = re.sub(r'[^A-Za-z0-9_-]+', '_', employee.employee_name).strip('_') or 'employee'
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'HireQuest_{safe_name}_{week_start.isoformat()}.pdf'
     )
 
 
