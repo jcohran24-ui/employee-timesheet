@@ -24,29 +24,55 @@
     {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
   {% endwith %}
 
-  <div class="card shadow-sm mb-4"><div class="card-body">
-    <h2 class="h5">Timesheet Email Recipients</h2>
-    <p class="text-secondary mb-3">Enter one or more email addresses. Separate addresses with commas, semicolons, or put each address on a new line.</p>
-    <form method="post" action="{{ url_for('admin_email_recipients') }}">
-      <label class="form-label">Send completed timesheets to</label>
-      <textarea class="form-control" name="recipients" rows="3" required>{{ recipients|join(', ') }}</textarea>
-      <div class="form-text">Example: payroll@company.com, supervisor@company.com</div>
-      <button class="btn btn-primary mt-3">Save Email Recipients</button>
-    </form>
-  </div></div>
+  <div class="admin-section-grid mb-4">
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-heading">
+          <div>
+            <div class="admin-section-kicker">Notifications</div>
+            <h2 class="h5 mb-1">Timesheet Email Recipients</h2>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('admin_email_recipients') }}">
+          <label class="form-label">Send completed timesheets to</label>
+          <textarea class="form-control" name="recipients" rows="4" required>{{ recipients|join(', ') }}</textarea>
+          <div class="form-text">Separate addresses with commas, semicolons, or new lines.</div>
+          <button class="btn btn-primary mt-3 mobile-full-btn">Save Email Recipients</button>
+        </form>
+      </div>
+    </section>
 
-  <div class="card shadow-sm mb-4"><div class="card-body">
-    <h2 class="h5">Add Employee</h2>
-    <p class="text-secondary">Create a temporary PIN. If Send Welcome Text is checked, the employee receives the login link, their name, and temporary PIN by SMS. They must choose a new PIN at first login.</p>
-    <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
-      <div class="col-md-4"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
-      <div class="col-md-3"><label class="form-label">Cell Phone</label><input class="form-control" name="phone_number" inputmode="tel" autocomplete="tel" placeholder="7705551234"></div>
-      <div class="col-md-2"><label class="form-label">4–6 Digit PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
-      <div class="col-md-3 d-flex align-items-end"><div class="w-100"><div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="send_welcome_text" value="1" id="sendWelcome" checked><label class="form-check-label" for="sendWelcome">Send Welcome Text</label></div><button class="btn btn-primary w-100">Add Employee</button></div></div>
-    </form>
-  </div></div>
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-heading">
+          <div>
+            <div class="admin-section-kicker">Employee Setup</div>
+            <h2 class="h5 mb-1">Add Employee</h2>
+          </div>
+        </div>
+        <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
+          <div class="col-12"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
+          <div class="col-md-7"><label class="form-label">Cell Phone</label><input class="form-control" name="phone_number" inputmode="tel" autocomplete="tel" placeholder="7705551234"></div>
+          <div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
+          <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="send_welcome_text" value="1" id="sendWelcome" checked><label class="form-check-label" for="sendWelcome">Send Welcome Text</label></div>
+            <button class="btn btn-primary admin-add-btn">Add Employee</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
 
-  <div class="card shadow-sm">
+  <section class="card shadow-sm admin-section-card">
+    <div class="card-body border-bottom pb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <div class="admin-section-kicker">Team Management</div>
+          <h2 class="h5 mb-0">Employees</h2>
+        </div>
+        <span class="badge rounded-pill text-bg-light border">{{ employees|length }} users</span>
+      </div>
+    </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 mobile-stack-table admin-employee-table">
         <thead><tr><th>Employee</th><th>Status</th><th style="min-width:220px">Phone</th><th style="min-width:290px">Reset PIN / Text</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
@@ -81,9 +107,7 @@
         </tbody>
       </table>
     </div>
-  </div>
-
-  <p class="small text-secondary mt-3">Twilio texts use the phone number saved on each employee. PINs are never stored in readable form, so to resend login information you reset the temporary PIN and check “Text new PIN to employee.” Historical timesheets remain when a login account is deleted.</p>
+  </section>
 </div>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

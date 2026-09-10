@@ -321,7 +321,6 @@ def build_timesheet_pdf(employee_name: str, week_start: date):
     ]))
     story.append(table)
     story.append(Spacer(1, 12))
-    story.append(Paragraph('Regular time is the first 40.00 hours in the workweek. Hours above 40.00 are overtime.', styles['BodyText']))
     doc.build(story)
     buffer.seek(0)
     return buffer

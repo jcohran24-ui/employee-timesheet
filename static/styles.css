@@ -125,3 +125,44 @@ body {
   .alert { border-radius: .8rem; }
   .small-mobile-note { font-size: .82rem; }
 }
+
+
+/* Admin dashboard organization */
+.admin-section-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.admin-section-card { overflow: hidden; }
+.admin-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.admin-section-kicker {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #6c757d;
+  margin-bottom: .2rem;
+}
+.admin-add-btn { min-width: 150px; }
+.admin-employee-table thead th {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: #6c757d;
+  background: #f8f9fa;
+}
+.admin-employee-table tbody tr:hover { background: rgba(13,110,253,.025); }
+
+@media (max-width: 991.98px) {
+  .admin-section-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767.98px) {
+  .admin-add-btn { width: 100%; min-width: 0; }
+}
