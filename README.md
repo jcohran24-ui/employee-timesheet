@@ -99,3 +99,7 @@ Admins can also download the selected employee/week as a PDF from the employee d
 
 ## Mobile-first layout
 The employee timesheet, admin dashboard, and admin employee detail page automatically switch to stacked card layouts on phone-size screens. Buttons and inputs use larger touch targets, and the installed PWA continues to work on Android and iPhone.
+
+
+## Edit employee profiles
+Admins can use **Edit User** to change an employee name, phone number, and active status. Renaming an employee also updates that employee's historical timesheet and email-submission records. PIN reset remains a separate security action.

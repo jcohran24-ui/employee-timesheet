@@ -774,6 +774,64 @@ def admin_add_employee():
     return redirect(url_for('admin_dashboard'))
 
 
+
+@app.route('/admin/employees/<int:employee_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_employee(employee_id):
+    employee = db.session.get(EmployeeAccount, employee_id)
+    if not employee:
+        flash('Employee not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    if request.method == 'POST':
+        new_name = clean_name(request.form.get('employee_name', ''))
+        phone_input = (request.form.get('phone_number', '') or '').strip()
+        phone_number = normalize_phone(phone_input) if phone_input else ''
+        active = request.form.get('active') == '1'
+
+        if len(new_name) < 2:
+            flash('Enter the employee\'s full name.', 'danger')
+            return render_template('edit_employee.html', employee=employee)
+        if phone_input and not phone_number:
+            flash('Enter a valid phone number, including area code.', 'danger')
+            return render_template('edit_employee.html', employee=employee)
+
+        new_key = name_key(new_name)
+        duplicate = EmployeeAccount.query.filter(
+            EmployeeAccount.name_key == new_key,
+            EmployeeAccount.id != employee.id,
+        ).first()
+        if duplicate:
+            flash('Another employee already uses that name.', 'danger')
+            return render_template('edit_employee.html', employee=employee)
+
+        old_name = employee.employee_name
+        if new_name != old_name:
+            # Historical records use employee_name as their link. Avoid merging into
+            # historical records left behind by a previously deleted account.
+            existing_time = EmployeeTimeEntry.query.filter_by(employee_name=new_name).first()
+            existing_email = TimesheetEmailSubmission.query.filter_by(employee_name=new_name).first()
+            if existing_time or existing_email:
+                flash('That name already has historical timesheet records. Use a different name to avoid combining employee histories.', 'danger')
+                return render_template('edit_employee.html', employee=employee)
+
+            EmployeeTimeEntry.query.filter_by(employee_name=old_name).update(
+                {'employee_name': new_name}, synchronize_session=False
+            )
+            TimesheetEmailSubmission.query.filter_by(employee_name=old_name).update(
+                {'employee_name': new_name}, synchronize_session=False
+            )
+
+        employee.employee_name = new_name
+        employee.name_key = new_key
+        employee.phone_number = phone_number or None
+        employee.active = active
+        db.session.commit()
+        flash(f'{new_name} was updated successfully.', 'success')
+        return redirect(url_for('admin_dashboard'))
+
+    return render_template('edit_employee.html', employee=employee)
+
 @app.post('/admin/employees/<int:employee_id>/toggle')
 @admin_required
 def admin_toggle_employee(employee_id):

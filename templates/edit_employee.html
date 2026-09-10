@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d6efd">
+  <title>Edit Employee - Timesheet Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<div class="container py-4" style="max-width:720px;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Edit Employee</h1>
+      <div class="text-secondary">Update account details without losing timesheet history.</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin_dashboard') }}">Back to Admin</a>
+  </div>
+
+  {% with messages=get_flashed_messages(with_categories=true) %}
+    {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <form method="post" action="{{ url_for('admin_edit_employee', employee_id=employee.id) }}">
+        <div class="mb-3">
+          <label class="form-label">Employee Name</label>
+          <input class="form-control form-control-lg" name="employee_name" value="{{ employee.employee_name }}" required>
+          <div class="form-text">Changing the name also updates this employee's existing timesheet history.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Cell Phone</label>
+          <input class="form-control form-control-lg" name="phone_number" inputmode="tel" autocomplete="tel" value="{{ employee.phone_number or '' }}" placeholder="7705551234">
+        </div>
+
+        <div class="form-check form-switch mb-4">
+          <input class="form-check-input" type="checkbox" role="switch" name="active" value="1" id="activeEmployee" {% if employee.active %}checked{% endif %}>
+          <label class="form-check-label" for="activeEmployee">Employee account is active</label>
+        </div>
+
+        <div class="d-grid d-sm-flex gap-2">
+          <button class="btn btn-primary btn-lg" type="submit">Save Changes</button>
+          <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('admin_dashboard') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="alert alert-light border mt-4 mb-0">
+    PIN changes are handled separately from the Admin dashboard. Resetting a PIN still makes it temporary and requires the employee to choose a new PIN at next login.
+  </div>
+</div>
+</body>
+</html>
