@@ -126,8 +126,5 @@ The NewSouth multi-employee PDF uses a clearly larger blank gap between employee
 ## HireQuest ticket template export
 The HireQuest option now uses the supplied HireQuest Direct ticket image as the PDF background. The selected employee's Monday-Sunday total hours are written into the first employee row, the weekly total is calculated, and the ticket DATE field is changed to the selected week's Monday. All other printed ticket information remains unchanged.
 
-## Clean vector HireQuest ticket
-The HireQuest export no longer places text on top of a fuzzy image. Instead, the ticket is redrawn directly in PDF using crisp lines and text so it keeps the same look while printing much cleaner. The only ticket field that changes automatically is the date, which follows the selected week.
-
-## HireQuest overlap fix
-The clean vector HireQuest ticket now uses a taller customer/job-site information block and a lower time-entry grid so the address, report-to, time, duties, and other header data stay inside their own cells without overlapping the table.
+## HireQuest PDF template
+The HireQuest export now uses the actual uploaded PDF ticket rather than the screenshot. The source page contained two copies of the ticket; `static/hirequest_ticket.pdf` contains only the top ticket. The app stamps the selected week date and saved Monday-Sunday hours onto that PDF.
