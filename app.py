@@ -841,6 +841,41 @@ def admin_employee_timesheet_pdf(employee_id):
 
 
 
+
+def _hq_fmt_date(d):
+    return f"{d.month}/{d.day}/{d.year}"
+
+def _hq_draw_rect(pdf, x, y, w, h, line=0.8, fill_color=None):
+    pdf.setLineWidth(line)
+    if fill_color is not None:
+        pdf.setFillColor(fill_color)
+        pdf.rect(x, y, w, h, fill=1, stroke=1)
+        pdf.setFillColor(colors.black)
+    else:
+        pdf.rect(x, y, w, h, fill=0, stroke=1)
+
+def _hq_draw_qr_placeholder(pdf, x, y, size):
+    pdf.setLineWidth(1)
+    pdf.rect(x, y, size, size, fill=0, stroke=1)
+    modules = 9
+    cell = size / modules
+    pattern = {
+        (0,0),(1,0),(2,0),(0,1),(2,1),(0,2),(1,2),(2,2),
+        (6,0),(7,0),(8,0),(6,1),(8,1),(6,2),(7,2),(8,2),
+        (0,6),(1,6),(2,6),(0,7),(2,7),(0,8),(1,8),(2,8),
+        (4,1),(5,1),(4,2),(5,3),(4,4),(5,4),(6,4),(5,5),
+        (3,6),(4,6),(5,6),(4,7),(6,7),(7,7),(6,8)
+    }
+    for cx, cy in pattern:
+        pdf.rect(x + cx * cell, y + cy * cell, cell, cell, fill=1, stroke=0)
+
+def _hq_draw_label_value(pdf, x, y, label, value, label_size=7, value_size=10):
+    pdf.setFont('Helvetica', label_size)
+    pdf.drawString(x, y, label)
+    pdf.setFont('Helvetica-Bold', value_size)
+    pdf.drawString(x, y - 11, value)
+
+
 def hirequest_employee_display_name(employee_name: str):
     parts = [p for p in (employee_name or '').strip().split() if p]
     if len(parts) >= 2:
@@ -860,43 +895,195 @@ def admin_employee_hirequest_pdf(employee_id):
     daily_hours = [float(r['total'] or 0) for r in rows]
     total_hours = sum(daily_hours)
 
-    template_path = os.path.join(app.root_path, 'static', 'hirequest_ticket.png')
-    if not os.path.exists(template_path):
-        abort(500, description='HireQuest ticket template is missing.')
-
-    # Match the supplied HireQuest ticket image exactly: 768 x 522 points.
     page_width, page_height = 768, 522
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
     pdf.setTitle(f'HireQuest Timesheet - {employee.employee_name}')
-    pdf.drawImage(ImageReader(template_path), 0, 0, width=page_width, height=page_height)
 
-    # Replace the original ticket date with the Monday of the selected week.
+    def y_from_top(top_value):
+        return page_height - top_value
+
+    # Outer border
+    pdf.setLineWidth(1)
+    pdf.rect(1, 1, page_width - 2, page_height - 2, fill=0, stroke=1)
+
+    # --- Top header blocks ---
+    top_h = 88
+    left_w, mid_w = 300, 134
+    right_w = page_width - left_w - mid_w - 2
+
+    _hq_draw_rect(pdf, 1, page_height - top_h - 1, left_w, top_h, line=0.8)
+    _hq_draw_rect(pdf, left_w + 1, page_height - top_h - 1, mid_w, top_h, line=0.8)
+    _hq_draw_rect(pdf, left_w + mid_w + 1, page_height - top_h - 1, right_w, top_h, line=0.8)
+
+    # Left address block
+    pdf.setFont('Helvetica', 10)
+    pdf.drawString(18, y_from_top(18), 'CHAMBLEE, GA')
+    pdf.drawString(18, y_from_top(35), '4294 MEMORIAL DR STE C')
+    pdf.drawString(18, y_from_top(52), 'DECATUR, GA 30032')
+    pdf.setFont('Helvetica', 9)
+    pdf.drawString(18, y_from_top(78), 'Phone:')
+    pdf.drawString(62, y_from_top(78), '(678) 547-0667')
+
+    # Middle QR / brand block
+    _hq_draw_qr_placeholder(pdf, left_w + 28, page_height - 70, 64)
+    pdf.setFont('Helvetica-Bold', 11)
+    pdf.drawString(left_w + 102, y_from_top(20), 'HireQuest Direct')
+    pdf.setFont('Helvetica-Oblique', 8)
+    pdf.drawString(left_w + 102, y_from_top(33), 'The Right People at the Right Time')
+
+    # Right order info block
+    x0 = left_w + mid_w + 1
+    label_fill = colors.HexColor('#222222')
+    box_h = 28
+    small_w = right_w / 3.0
+    titles = [('Order Number', '2189980'), ('Customer ID', '35111'), ('Time Slip', '15426560')]
+    for i, (lbl, val) in enumerate(titles):
+        x = x0 + i * small_w
+        _hq_draw_rect(pdf, x, page_height - box_h - 1, small_w, box_h, line=0.6)
+        pdf.setFillColor(label_fill)
+        pdf.rect(x, page_height - 12 - 1, small_w, 12, fill=1, stroke=0)
+        pdf.setFillColor(colors.white)
+        pdf.setFont('Helvetica', 6.5)
+        pdf.drawCentredString(x + small_w / 2, page_height - 8, lbl)
+        pdf.setFillColor(colors.black)
+        pdf.setFont('Helvetica-Bold', 10)
+        pdf.drawCentredString(x + small_w / 2, page_height - 24, val)
+
+    # Second header row
+    second_y = page_height - top_h - 1
+    second_h = 52
+    left2_w = 500
+    right2_w = page_width - left2_w - 2
+    _hq_draw_rect(pdf, 1, second_y - second_h, left2_w, second_h, line=0.8)
+    _hq_draw_rect(pdf, left2_w + 1, second_y - second_h, right2_w, second_h, line=0.8)
+
+    # Customer / Job site
+    pdf.setFont('Helvetica-Bold', 11)
+    pdf.drawString(8, second_y - 18, 'Customer')
+    pdf.drawString(8, second_y - 38, 'Job Site')
+    pdf.setFont('Helvetica', 10.5)
+    pdf.drawString(118, second_y - 18, 'NEW SOUTH CONSTRUCTION')
+    pdf.drawString(118, second_y - 34, 'CTCC OASIS')
+    pdf.drawString(118, second_y - 50, '155 WEST PACES FERRY RD NW')
+    pdf.drawString(118, second_y - 66, 'ATLANTA, GA 30305')
+
+    # Right side: DATE + PO + report info
+    rx = left2_w + 10
+    pdf.setFont('Helvetica', 9)
+    pdf.drawString(rx, second_y - 14, 'DATE')
+    pdf.setFont('Helvetica-Bold', 10)
+    pdf.drawString(rx + 38, second_y - 14, _hq_fmt_date(week_start))
+
+    po_x, po_w = left2_w + 115, 150
+    _hq_draw_rect(pdf, po_x, second_y - 24, po_w, 22, line=0.6)
+    pdf.setFillColor(label_fill)
+    pdf.rect(po_x, second_y - 2, po_w, 10, fill=1, stroke=0)
     pdf.setFillColor(colors.white)
-    pdf.rect(450, page_height - 76, 91, 21, fill=1, stroke=0)
+    pdf.setFont('Helvetica', 6.5)
+    pdf.drawCentredString(po_x + po_w / 2, second_y + 4, 'Customer P.O. Number')
+    pdf.setFillColor(colors.black)
+    pdf.setFont('Helvetica-Bold', 9.5)
+    pdf.drawString(po_x + 10, second_y - 15, '25-562')
+
+    pdf.setFont('Helvetica', 8.5)
+    pdf.drawString(rx, second_y - 30, 'REPORT TO: JODY 404-952-5115')
+    pdf.drawString(rx + 205, second_y - 30, 'TIME: 07:00 AM')
+    pdf.drawString(rx, second_y - 46, 'DUTIES: 1 SKILLED - SKILLED')
+    pdf.drawString(rx, second_y - 62, 'GATE GUARD')
+
+    # Directions/notes strip
+    dir_y = second_y - second_h - 21
+    _hq_draw_rect(pdf, 1, dir_y, page_width - 2, 21, line=0.8)
+    pdf.setFont('Helvetica', 8.5)
+    pdf.drawString(6, dir_y + 6, 'Directions/Notes:')
+
+    # --- Main time table ---
+    table_top = dir_y
+    table_bottom = 118
+    table_h = table_top - table_bottom
+    _hq_draw_rect(pdf, 1, table_bottom, page_width - 2, table_h, line=0.8)
+
+    # Column boundaries
+    cols = [1, 36, 71, 109, 145, 181, 225, 265, 456, 490, 524, 558, 592, 626, 660, 694, 767]
+    for x in cols[1:-1]:
+        pdf.line(x, table_bottom, x, table_top)
+
+    header_h = 18
+    pdf.setFillColor(colors.HexColor('#1f1f1f'))
+    pdf.rect(1, table_top - header_h, page_width - 2, header_h, fill=1, stroke=0)
+    pdf.setFillColor(colors.white)
+    pdf.setFont('Helvetica', 5.7)
+    head_y = table_top - 12
+    headers = ['Hat', 'Boots', 'Gloves,\nGlasses', 'Vest', 'Cash', 'Carpool?', 'Class', 'Employee Name (Last, First)', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU', 'TOTAL']
+    for i, hdr in enumerate(headers):
+        x1, x2 = cols[i], cols[i + 1]
+        cx = (x1 + x2) / 2
+        if '\n' in hdr:
+            a, b = hdr.split('\n')
+            pdf.drawCentredString(cx, table_top - 8, a)
+            pdf.drawCentredString(cx, table_top - 14, b)
+        else:
+            pdf.drawCentredString(cx, head_y, hdr)
+
+    # Row lines
+    row_h = 24
+    first_row_top = table_top - header_h
+    row_lines = [first_row_top - i * row_h for i in range(0, 9)]
+    for y in row_lines:
+        pdf.line(1, y, page_width - 1, y)
+
+    # Filled employee row
+    row_y = first_row_top - 16
     pdf.setFillColor(colors.black)
     pdf.setFont('Helvetica', 10)
-    pdf.drawString(455, page_height - 70, week_start.strftime('%-m/%-d/%Y'))
+    pdf.drawString(cols[7] + 4, row_y, 'SKILL')
+    pdf.setFont('Helvetica', 15)
+    pdf.drawString(cols[8] - 228, row_y, hirequest_employee_display_name(employee.employee_name))
 
-    # Keep the supplied layout but allow the employee name to match the selected employee.
-    pdf.setFillColor(colors.white)
-    pdf.rect(263, page_height - 218, 218, 23, fill=1, stroke=0)
-    pdf.setFillColor(colors.black)
-    pdf.setFont('Helvetica', 13)
-    pdf.drawString(266, page_height - 212, hirequest_employee_display_name(employee.employee_name))
-
-    # Daily hour cells on the first employee row: Monday through Sunday, then weekly total.
-    hour_centers = [498, 531, 565, 599, 632, 665, 699]
-    hour_baseline = page_height - 212
     pdf.setFont('Helvetica-Bold', 10)
-    for x, value in zip(hour_centers, daily_hours):
-        display = '' if abs(value) < 0.001 else (str(int(value)) if float(value).is_integer() else f'{value:.2f}'.rstrip('0').rstrip('.'))
-        if display:
-            pdf.drawCentredString(x, hour_baseline, display)
+    centers = [ (cols[i] + cols[i+1]) / 2 for i in range(8, 15) ]
+    for cx, value in zip(centers, daily_hours):
+        if abs(value) > 0.001:
+            display = str(int(value)) if float(value).is_integer() else f'{value:.2f}'.rstrip('0').rstrip('.')
+            pdf.drawCentredString(cx, row_y, display)
+    if abs(total_hours) > 0.001:
+        total_display = str(int(total_hours)) if float(total_hours).is_integer() else f'{total_hours:.2f}'.rstrip('0').rstrip('.')
+        pdf.drawCentredString((cols[15] + cols[16]) / 2, row_y, total_display)
 
-    total_display = str(int(total_hours)) if float(total_hours).is_integer() else f'{total_hours:.2f}'.rstrip('0').rstrip('.')
-    if total_display != '0':
-        pdf.drawCentredString(742, hour_baseline, total_display)
+    # Footer note
+    note_top = table_bottom
+    note_bottom = 78
+    _hq_draw_rect(pdf, 1, note_bottom, page_width - 2, note_top - note_bottom, line=0.8)
+    pdf.setFont('Helvetica', 7.1)
+    pdf.drawString(4, note_top - 14, 'Attention Supervisors: Please fill the hours worked by employees, sign, and tear at perforation.')
+    pdf.drawString(4, note_top - 25, 'Return top portion of time ticket and keep the bottom portion for your records. By signing, customer')
+    pdf.drawString(4, note_top - 36, 'agrees to the terms on the reverse side of this ticket.')
+
+    # Signature / repeat workers
+    sig_bottom = 16
+    _hq_draw_rect(pdf, 1, sig_bottom, page_width - 2, note_bottom - sig_bottom, line=0.8)
+    repeat_w = 238
+    repeat_x = page_width - repeat_w - 1
+    _hq_draw_rect(pdf, repeat_x, sig_bottom, repeat_w, note_bottom - sig_bottom, line=0.8)
+    pdf.line(repeat_x + 86, sig_bottom, repeat_x + 86, note_bottom)
+    pdf.line(repeat_x, sig_bottom + 32, page_width - 1, sig_bottom + 32)
+
+    pdf.setFont('Helvetica-Bold', 8.8)
+    pdf.drawString(6, sig_bottom + 7, 'AUTHORIZED SIGNATURE')
+    pdf.setFont('Helvetica', 9)
+    pdf.drawString(308, sig_bottom + 7, '( Return to HireQuest Direct )')
+    pdf.setFont('Helvetica', 5.8)
+    pdf.drawCentredString(page_width / 2, 8, 'HireQuest, Inc. publicly traded on NASDAQ as HQI')
+
+    pdf.setFont('Helvetica-Bold', 8.8)
+    pdf.drawString(repeat_x + 8, sig_bottom + 38, 'Repeat')
+    pdf.drawString(repeat_x + 8, sig_bottom + 26, 'Workers')
+    pdf.setFont('Helvetica', 8.8)
+    pdf.drawString(repeat_x + 94, sig_bottom + 40, 'Date:')
+    pdf.drawString(repeat_x + 94, sig_bottom + 20, 'Time:')
+    pdf.drawString(repeat_x + 8, sig_bottom + 8, 'Yes or No')
+    pdf.drawString(repeat_x + 94, sig_bottom + 8, '# of Workers:')
 
     pdf.save()
     buffer.seek(0)
@@ -908,6 +1095,8 @@ def admin_employee_hirequest_pdf(employee_id):
         as_attachment=True,
         download_name=f'HireQuest_{safe_name}_{week_start.isoformat()}.pdf'
     )
+
+
 
 
 def newsouth_default_cc(employee_name: str):
