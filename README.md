@@ -128,3 +128,6 @@ The HireQuest option now uses the supplied HireQuest Direct ticket image as the 
 
 ## HireQuest PDF template
 The HireQuest export now uses the actual uploaded PDF ticket rather than the screenshot. The source page contained two copies of the ticket; `static/hirequest_ticket.pdf` contains only the top ticket. The app stamps the selected week date and saved Monday-Sunday hours onto that PDF.
+
+## HireQuest hour alignment
+The HireQuest daily-hour values were moved slightly lower inside the employee row so they are centered in the time cells and no longer overlap the weekday header labels.

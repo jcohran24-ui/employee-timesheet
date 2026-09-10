@@ -883,7 +883,7 @@ def admin_employee_hirequest_pdf(employee_id):
 
     # Fill Monday-Sunday hours on the first employee line and calculate total.
     hour_centers = [394, 420, 446, 473, 499, 526, 552]
-    hour_baseline = 231
+    hour_baseline = 227
     overlay.setFont('Helvetica-Bold', 8.8)
     for x, value in zip(hour_centers, daily_hours):
         if abs(value) < 0.001:
