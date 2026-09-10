@@ -1,5 +1,6 @@
 import os
 import smtplib
+import csv
 from email.message import EmailMessage
 from email.utils import parseaddr
 from datetime import date, datetime, timedelta
@@ -10,7 +11,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
 from werkzeug.security import generate_password_hash, check_password_hash
-from io import BytesIO
+from io import BytesIO, StringIO
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -23,7 +24,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///tim
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-TZ = ZoneInfo(os.getenv('APP_TIMEZONE', 'America/New_York'))
+DEFAULT_TIMEZONE = os.getenv('APP_TIMEZONE', 'America/New_York')
+TZ = ZoneInfo(DEFAULT_TIMEZONE)
 
 
 # Original single-user table retained for backward compatibility.
@@ -82,6 +84,52 @@ class AppSetting(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+
+DEFAULT_SETTINGS = {
+    'company_name': 'JC Timesheet',
+    'app_name': 'JC Timesheet',
+    'overtime_threshold': '40',
+    'timezone': DEFAULT_TIMEZONE,
+    'weekly_cutoff_time': '17:00',
+}
+
+def get_setting(key: str, default=None):
+    setting = AppSetting.query.filter_by(key=key).first()
+    if setting and setting.value is not None and str(setting.value).strip() != '':
+        return setting.value
+    if key == 'timesheet_recipients':
+        return os.getenv('TIMESHEET_TO_EMAIL', '')
+    return DEFAULT_SETTINGS.get(key, default)
+
+def set_setting(key: str, value: str):
+    setting = AppSetting.query.filter_by(key=key).first()
+    if not setting:
+        setting = AppSetting(key=key, value='')
+        db.session.add(setting)
+    setting.value = str(value)
+
+def app_timezone():
+    tz_name = get_setting('timezone', DEFAULT_TIMEZONE)
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        return ZoneInfo(DEFAULT_TIMEZONE)
+
+def overtime_threshold():
+    try:
+        value = float(get_setting('overtime_threshold', '40'))
+        return max(1.0, min(value, 168.0))
+    except Exception:
+        return 40.0
+
+def selected_week_from_request():
+    raw = request.args.get('week')
+    try:
+        base = date.fromisoformat(raw) if raw else datetime.now(app_timezone()).date()
+    except ValueError:
+        base = datetime.now(app_timezone()).date()
+    return monday_for(base)
+
 class AdminAccount(db.Model):
     __tablename__ = 'admin_account'
     id = db.Column(db.Integer, primary_key=True)
@@ -119,11 +167,9 @@ def valid_email(value: str) -> bool:
 
 
 def get_timesheet_recipients():
-    setting = AppSetting.query.filter_by(key='timesheet_recipients').first()
-    if setting and setting.value.strip():
-        return [x.strip() for x in setting.value.split(',') if x.strip()]
-    fallback = os.getenv('TIMESHEET_TO_EMAIL', '')
-    return [x.strip() for x in fallback.replace(';', ',').split(',') if x.strip()]
+    raw = get_setting('timesheet_recipients', '') or ''
+    normalized = str(raw).replace(';', ',').replace(chr(10), ',')
+    return [x.strip() for x in normalized.split(',') if x.strip()]
 
 
 def employee_required(view):
@@ -298,7 +344,7 @@ def send_timesheet_email(subject: str, body: str):
 
 
 def email_if_friday(employee_name: str, week_start: date):
-    today = datetime.now(TZ).date()
+    today = datetime.now(app_timezone()).date()
     if today.weekday() != 4 or monday_for(today) != week_start:
         return False, None
 
@@ -413,9 +459,9 @@ def index():
 
     requested = request.args.get('week')
     try:
-        base = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
+        base = date.fromisoformat(requested) if requested else datetime.now(app_timezone()).date()
     except ValueError:
-        base = datetime.now(TZ).date()
+        base = datetime.now(app_timezone()).date()
 
     week_start = monday_for(base)
     days = week_days(week_start)
@@ -472,7 +518,7 @@ def save():
             flash(f'Invalid hours for {d.strftime("%A, %b %d")}. Daily total must be between 0 and 24.', 'danger')
             return redirect(url_for('index', week=week_start.isoformat()))
 
-        regular_available = max(0.0, 40.0 - weekly_regular_used)
+        regular_available = max(0.0, overtime_threshold() - weekly_regular_used)
         regular = min(daily_total, regular_available)
         overtime = max(0.0, daily_total - regular)
         weekly_regular_used += regular
@@ -529,9 +575,41 @@ def admin_logout():
 @app.get('/admin')
 @admin_required
 def admin_dashboard():
+    week_start = selected_week_from_request()
+    week_end = week_start + timedelta(days=6)
     employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
+    active_employees = [e for e in employees if e.active]
+
+    entries = EmployeeTimeEntry.query.filter(
+        EmployeeTimeEntry.work_date.between(week_start, week_end)
+    ).all()
+    active_names = {e.employee_name for e in active_employees}
+    names_with_entries = {
+        e.employee_name for e in entries
+        if e.employee_name in active_names and ((e.regular_hours or 0) + (e.overtime_hours or 0) > 0 or (e.notes or '').strip())
+    }
+    total_hours = sum(
+        (e.regular_hours or 0) + (e.overtime_hours or 0)
+        for e in entries if e.employee_name in active_names
+    )
+    summary = {
+        'active_employees': len(active_employees),
+        'timesheets_this_week': len(names_with_entries),
+        'missing_timesheets': max(0, len(active_employees) - len(names_with_entries)),
+        'hours_this_week': total_hours,
+    }
     recipients = get_timesheet_recipients()
-    return render_template('admin.html', employees=employees, recipients=recipients)
+    settings = {
+        'company_name': get_setting('company_name', 'JC Timesheet'),
+        'app_name': get_setting('app_name', 'JC Timesheet'),
+        'overtime_threshold': overtime_threshold(),
+        'timezone': get_setting('timezone', DEFAULT_TIMEZONE),
+        'weekly_cutoff_time': get_setting('weekly_cutoff_time', '17:00'),
+    }
+    return render_template(
+        'admin.html', employees=employees, recipients=recipients, settings=settings,
+        summary=summary, week_start=week_start, week_end=week_end
+    )
 
 
 
@@ -545,9 +623,9 @@ def admin_employee_timesheet(employee_id):
 
     requested = request.args.get('week')
     try:
-        base_day = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
+        base_day = date.fromisoformat(requested) if requested else datetime.now(app_timezone()).date()
     except ValueError:
-        base_day = datetime.now(TZ).date()
+        base_day = datetime.now(app_timezone()).date()
 
     week_start = monday_for(base_day)
     days = week_days(week_start)
@@ -599,7 +677,7 @@ def admin_save_employee_timesheet(employee_id):
             flash(f'Invalid hours for {d.strftime("%A, %b %d")}. Daily total must be between 0 and 24.', 'danger')
             return redirect(url_for('admin_employee_timesheet', employee_id=employee_id, week=week_start.isoformat()))
 
-        regular_available = max(0.0, 40.0 - weekly_regular_used)
+        regular_available = max(0.0, overtime_threshold() - weekly_regular_used)
         regular = min(daily_total, regular_available)
         overtime = max(0.0, daily_total - regular)
         weekly_regular_used += regular
@@ -636,9 +714,9 @@ def admin_employee_timesheet_pdf(employee_id):
 
     requested = request.args.get('week')
     try:
-        base_day = date.fromisoformat(requested) if requested else datetime.now(TZ).date()
+        base_day = date.fromisoformat(requested) if requested else datetime.now(app_timezone()).date()
     except ValueError:
-        base_day = datetime.now(TZ).date()
+        base_day = datetime.now(app_timezone()).date()
     week_start = monday_for(base_day)
     pdf = build_timesheet_pdf(employee.employee_name, week_start)
     safe_name = ''.join(ch if ch.isalnum() else '_' for ch in employee.employee_name).strip('_') or 'employee'
@@ -679,6 +757,163 @@ def admin_email_recipients():
     suffix = 'es' if len(recipients) != 1 else ''
     flash(f'Email recipients updated ({len(recipients)} address{suffix}).', 'success')
     return redirect(url_for('admin_dashboard'))
+
+
+
+@app.post('/admin/settings')
+@admin_required
+def admin_settings():
+    company_name = clean_name(request.form.get('company_name', '')) or 'JC Timesheet'
+    app_name = clean_name(request.form.get('app_name', '')) or 'JC Timesheet'
+
+    try:
+        threshold = float(request.form.get('overtime_threshold', '40'))
+        if threshold <= 0 or threshold > 168:
+            raise ValueError
+    except ValueError:
+        flash('Overtime threshold must be between 1 and 168 hours.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    timezone_name = (request.form.get('timezone', '') or '').strip()
+    try:
+        ZoneInfo(timezone_name)
+    except Exception:
+        flash('Enter a valid timezone such as America/New_York.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    cutoff = (request.form.get('weekly_cutoff_time', '') or '').strip()
+    if not re.match(r'^(?:[01]\d|2[0-3]):[0-5]\d$', cutoff):
+        flash('Weekly cutoff time must be a valid time.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    raw = request.form.get('recipients', '') or ''
+    parts = [x.strip() for x in raw.replace(';', ',').replace(chr(10), ',').split(',') if x.strip()]
+    recipients = []
+    seen = set()
+    invalid = []
+    for address in parts:
+        if not valid_email(address):
+            invalid.append(address)
+            continue
+        key = address.casefold()
+        if key not in seen:
+            seen.add(key)
+            recipients.append(address)
+    if invalid:
+        flash('Invalid email addresses: ' + ', '.join(invalid), 'danger')
+        return redirect(url_for('admin_dashboard'))
+    if not recipients:
+        flash('Enter at least one valid email recipient.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    set_setting('company_name', company_name)
+    set_setting('app_name', app_name)
+    set_setting('overtime_threshold', threshold)
+    set_setting('timezone', timezone_name)
+    set_setting('weekly_cutoff_time', cutoff)
+    set_setting('timesheet_recipients', ','.join(recipients))
+    db.session.commit()
+    flash('Admin settings updated.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+def build_bulk_timesheet_pdf(week_start: date):
+    week_end = week_start + timedelta(days=6)
+    employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30,
+        title=f'Weekly Timesheet Report {week_start.isoformat()}'
+    )
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph(get_setting('company_name', 'JC Timesheet'), styles['Title']),
+        Paragraph(
+            f'Weekly Timesheet Report: {week_start.strftime("%m/%d/%Y")} - {week_end.strftime("%m/%d/%Y")}',
+            styles['Heading2']
+        ),
+        Spacer(1, 12),
+    ]
+    has_data = False
+    for employee in employees:
+        rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+        if not any(r['total'] or (r['notes'] or '').strip() for r in rows):
+            continue
+        has_data = True
+        story.append(Paragraph(employee.employee_name, styles['Heading2']))
+        data = [['Day', 'Date', 'Total', 'Regular', 'OT', 'Notes']]
+        for row in rows:
+            notes = (row['notes'] or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            data.append([
+                row['date'].strftime('%a'),
+                row['date'].strftime('%m/%d/%Y'),
+                f"{row['total']:.2f}",
+                f"{row['regular']:.2f}",
+                f"{row['overtime']:.2f}",
+                Paragraph(notes or '-', styles['BodyText']),
+            ])
+        data.append(['Totals', '', f'{total_regular + total_overtime:.2f}', f'{total_regular:.2f}', f'{total_overtime:.2f}', ''])
+        table = Table(data, colWidths=[46, 66, 42, 48, 38, 280], repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d6efd')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('GRID', (0,0), (-1,-1), 0.4, colors.HexColor('#cccccc')),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ALIGN', (2,1), (4,-1), 'RIGHT'),
+            ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#e9ecef')),
+            ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.extend([table, Spacer(1, 18)])
+    if not has_data:
+        story.append(Paragraph('No timesheet entries were found for this week.', styles['BodyText']))
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+@app.get('/admin/reports/weekly.pdf')
+@admin_required
+def admin_bulk_weekly_pdf():
+    week_start = selected_week_from_request()
+    pdf = build_bulk_timesheet_pdf(week_start)
+    return send_file(
+        pdf, mimetype='application/pdf', as_attachment=True,
+        download_name=f'weekly_timesheets_{week_start.isoformat()}.pdf'
+    )
+
+
+@app.get('/admin/reports/weekly.csv')
+@admin_required
+def admin_bulk_weekly_csv():
+    week_start = selected_week_from_request()
+    employees = EmployeeAccount.query.order_by(EmployeeAccount.employee_name).all()
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Employee', 'Day', 'Date', 'Total Hours', 'Regular Hours', 'Overtime Hours', 'Notes'])
+    for employee in employees:
+        rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+        wrote = False
+        for row in rows:
+            if row['total'] or (row['notes'] or '').strip():
+                wrote = True
+                writer.writerow([
+                    employee.employee_name, row['date'].strftime('%A'), row['date'].isoformat(),
+                    f"{row['total']:.2f}", f"{row['regular']:.2f}", f"{row['overtime']:.2f}",
+                    row['notes'] or ''
+                ])
+        if wrote:
+            writer.writerow([
+                employee.employee_name, 'WEEK TOTAL', '',
+                f'{total_regular + total_overtime:.2f}', f'{total_regular:.2f}', f'{total_overtime:.2f}', ''
+            ])
+    data = output.getvalue().encode('utf-8-sig')
+    return send_file(
+        BytesIO(data), mimetype='text/csv; charset=utf-8', as_attachment=True,
+        download_name=f'weekly_timesheets_{week_start.isoformat()}.csv'
+    )
 
 
 @app.post('/admin/employees/add')
@@ -789,7 +1024,7 @@ def admin_resend_current_week(employee_id):
         flash('Employee not found.', 'danger')
         return redirect(url_for('admin_dashboard'))
 
-    week_start = monday_for(datetime.now(TZ).date())
+    week_start = monday_for(datetime.now(app_timezone()).date())
     try:
         subject, body = build_employee_email(employee.employee_name, week_start)
         send_timesheet_email(subject, body)

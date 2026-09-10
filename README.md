@@ -96,3 +96,9 @@ The employee timesheet, admin dashboard, and admin employee detail page automati
 
 
 ## Edit employee profiles
+
+## Admin dashboard upgrades
+- Summary cards for Active Employees, Timesheets This Week, Missing Timesheets, and Hours This Week.
+- Employee search and sorting.
+- Combined weekly PDF and CSV exports.
+- Admin-editable company/app name, email recipients, overtime threshold, timezone, and weekly cutoff time.

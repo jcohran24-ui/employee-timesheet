@@ -166,3 +166,22 @@ body {
 @media (max-width: 767.98px) {
   .admin-add-btn { width: 100%; min-width: 0; }
 }
+
+
+/* Admin dashboard enhancements */
+.admin-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
+.summary-card .card-body { padding:1.1rem 1.2rem; }
+.summary-label { color:#6c757d; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.summary-number { font-size:1.8rem; font-weight:700; line-height:1.1; margin-top:.35rem; }
+.employee-tools .form-control { width:230px; }
+.employee-tools .form-select { width:160px; }
+@media (max-width:991.98px){ .admin-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+@media (max-width:767.98px){
+  .admin-summary-grid{grid-template-columns:1fr 1fr; gap:.7rem;}
+  .summary-card .card-body{padding:.9rem;}
+  .summary-number{font-size:1.45rem;}
+  .employee-tools{width:100%;}
+  .employee-tools .form-control,.employee-tools .form-select{width:100%;}
+  .admin-top-actions,.admin-top-actions>form{width:100%;}
+  .admin-top-actions>form{display:grid!important;grid-template-columns:1fr auto;}
+}

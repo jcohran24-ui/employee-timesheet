@@ -4,42 +4,45 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0d6efd">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Timesheet">
   <link rel="manifest" href="{{ url_for('manifest') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
-  <title>Timesheet Admin</title>
+  <title>{{ settings.app_name }} Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
 <div class="container py-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 mobile-header">
-    <div><h1 class="h3 mb-1">Timesheet Admin</h1><div class="text-secondary">Manage employees and timesheet delivery</div></div>
-    <form class="logout-form" method="post" action="{{ url_for('admin_logout') }}"><button class="btn btn-outline-dark">Log Out</button></form>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 mobile-header">
+    <div>
+      <div class="text-secondary small">{{ settings.company_name }}</div>
+      <h1 class="h3 mb-1">{{ settings.app_name }} Admin</h1>
+      <div class="text-secondary">Week of {{ week_start.strftime('%m/%d/%Y') }} - {{ week_end.strftime('%m/%d/%Y') }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 admin-top-actions">
+      <form method="get" action="{{ url_for('admin_dashboard') }}" class="d-flex gap-2">
+        <input class="form-control" type="date" name="week" value="{{ week_start.isoformat() }}">
+        <button class="btn btn-outline-primary">View Week</button>
+      </form>
+      <form method="post" action="{{ url_for('admin_logout') }}"><button class="btn btn-outline-dark">Log Out</button></form>
+    </div>
   </div>
 
   {% with messages=get_flashed_messages(with_categories=true) %}
     {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
   {% endwith %}
 
+  <section class="admin-summary-grid mb-4">
+    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Active Employees</div><div class="summary-number">{{ summary.active_employees }}</div></div></div>
+    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Timesheets This Week</div><div class="summary-number">{{ summary.timesheets_this_week }}</div></div></div>
+    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Missing Timesheets</div><div class="summary-number">{{ summary.missing_timesheets }}</div></div></div>
+    <div class="card shadow-sm summary-card"><div class="card-body"><div class="summary-label">Hours This Week</div><div class="summary-number">{{ '%.2f'|format(summary.hours_this_week) }}</div></div></div>
+  </section>
+
   <div class="admin-section-grid mb-4">
     <section class="card shadow-sm admin-section-card">
       <div class="card-body">
-        <div class="admin-section-heading"><div><div class="admin-section-kicker">Notifications</div><h2 class="h5 mb-1">Timesheet Email Recipients</h2></div></div>
-        <form method="post" action="{{ url_for('admin_email_recipients') }}">
-          <label class="form-label">Send completed timesheets to</label>
-          <textarea class="form-control" name="recipients" rows="4" required>{{ recipients|join(', ') }}</textarea>
-          <div class="form-text">Separate addresses with commas, semicolons, or new lines.</div>
-          <button class="btn btn-primary mt-3 mobile-full-btn">Save Email Recipients</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="card shadow-sm admin-section-card">
-      <div class="card-body">
-        <div class="admin-section-heading"><div><div class="admin-section-kicker">Employee Setup</div><h2 class="h5 mb-1">Add Employee</h2></div></div>
+        <div class="admin-section-kicker">Employee Setup</div>
+        <h2 class="h5 mb-3">Add Employee</h2>
         <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
           <div class="col-md-7"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
           <div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
@@ -47,33 +50,63 @@
         </form>
       </div>
     </section>
+
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-kicker">Weekly Reports</div>
+        <h2 class="h5 mb-3">Bulk Download</h2>
+        <div class="text-secondary mb-3">All entered timesheets for the selected week.</div>
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="{{ url_for('admin_bulk_weekly_pdf', week=week_start.isoformat()) }}">Download Combined PDF</a>
+          <a class="btn btn-outline-primary" href="{{ url_for('admin_bulk_weekly_csv', week=week_start.isoformat()) }}">Download CSV Export</a>
+        </div>
+      </div>
+    </section>
   </div>
 
+  <section class="card shadow-sm admin-section-card mb-4">
+    <div class="card-body">
+      <div class="admin-section-kicker">Application Settings</div>
+      <h2 class="h5 mb-3">Admin Settings</h2>
+      <form class="row g-3" method="post" action="{{ url_for('admin_settings') }}">
+        <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" name="company_name" value="{{ settings.company_name }}" required></div>
+        <div class="col-md-6"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="{{ settings.app_name }}" required></div>
+        <div class="col-md-4"><label class="form-label">Overtime Threshold</label><div class="input-group"><input class="form-control" type="number" step="0.25" min="1" max="168" name="overtime_threshold" value="{{ settings.overtime_threshold }}" required><span class="input-group-text">hrs/week</span></div></div>
+        <div class="col-md-4"><label class="form-label">Timezone</label><input class="form-control" name="timezone" value="{{ settings.timezone }}" required></div>
+        <div class="col-md-4"><label class="form-label">Weekly Cutoff Time</label><input class="form-control" type="time" name="weekly_cutoff_time" value="{{ settings.weekly_cutoff_time }}" required></div>
+        <div class="col-12"><label class="form-label">Timesheet Email Recipients</label><textarea class="form-control" name="recipients" rows="3" required>{{ recipients|join(', ') }}</textarea><div class="form-text">Separate multiple addresses with commas, semicolons, or new lines.</div></div>
+        <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary admin-add-btn">Save Settings</button></div>
+      </form>
+    </div>
+  </section>
+
   <section class="card shadow-sm admin-section-card">
-    <div class="card-body border-bottom pb-3">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="card-body border-bottom">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div><div class="admin-section-kicker">Team Management</div><h2 class="h5 mb-0">Employees</h2></div>
-        <span class="badge rounded-pill text-bg-light border">{{ employees|length }} users</span>
+        <div class="d-flex flex-wrap gap-2 employee-tools">
+          <input id="employeeSearch" class="form-control" type="search" placeholder="Search employees...">
+          <select id="employeeSort" class="form-select">
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
+            <option value="active-first">Active first</option>
+            <option value="inactive-first">Inactive first</option>
+          </select>
+          <span class="badge rounded-pill text-bg-light border align-self-center">{{ employees|length }} users</span>
+        </div>
       </div>
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 mobile-stack-table admin-employee-table">
-        <thead><tr><th>Employee</th><th>Status</th><th style="min-width:220px">Reset PIN</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
-        <tbody>
+        <thead><tr><th>Employee</th><th>Status</th><th>Reset PIN</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
+        <tbody id="employeeTableBody">
         {% for employee in employees %}
-          <tr>
-            <td data-label="Employee" class="fw-semibold mobile-day"><a href="{{ url_for('admin_employee_timesheet', employee_id=employee.id) }}" class="text-decoration-none">{{ employee.employee_name }}</a></td>
-            <td data-label="Status">
-              {% if employee.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}
-              {% if employee.must_change_pin %}<div class="small text-warning-emphasis mt-1">PIN change required</div>{% endif %}
-            </td>
-            <td data-label="Reset PIN">
-              <form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}">
-                <div class="d-flex gap-2"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div>
-              </form>
-            </td>
+          <tr data-name="{{ employee.employee_name|lower }}" data-active="{{ '1' if employee.active else '0' }}">
+            <td data-label="Employee" class="fw-semibold mobile-day"><a href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=week_start.isoformat()) }}" class="text-decoration-none">{{ employee.employee_name }}</a></td>
+            <td data-label="Status">{% if employee.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}{% if employee.must_change_pin %}<div class="small text-warning-emphasis mt-1">PIN change required</div>{% endif %}</td>
+            <td data-label="Reset PIN"><form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}"><div class="d-flex gap-2"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div></form></td>
             <td data-label="Access" class="action-cell"><form method="post" action="{{ url_for('admin_toggle_employee', employee_id=employee.id) }}"><button class="btn btn-sm {{ 'btn-outline-danger' if employee.active else 'btn-outline-success' }}">{{ 'Deactivate' if employee.active else 'Reactivate' }}</button></form></td>
-            <td data-label="Email" class="action-cell"><form method="post" action="{{ url_for('admin_resend_current_week', employee_id=employee.id) }}" onsubmit="return confirm('Resend {{ employee.employee_name|e }}\'s current-week timesheet to all configured recipients?');"><button class="btn btn-sm btn-outline-primary">Resend Current Week</button></form></td>
+            <td data-label="Email" class="action-cell"><form method="post" action="{{ url_for('admin_resend_current_week', employee_id=employee.id) }}" onsubmit="return confirm('Resend {{ employee.employee_name|e }}\'s current-week timesheet?');"><button class="btn btn-sm btn-outline-primary">Resend Current Week</button></form></td>
             <td data-label="Edit" class="action-cell"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_edit_employee', employee_id=employee.id) }}">Edit User</a></td>
             <td data-label="Delete" class="action-cell"><form method="post" action="{{ url_for('admin_delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Delete {{ employee.employee_name|e }}\'s login account? Historical timesheets will be kept.');"><button class="btn btn-sm btn-danger">Delete User</button></form></td>
           </tr>
@@ -85,6 +118,28 @@
     </div>
   </section>
 </div>
+<script>
+(function () {
+  const search = document.getElementById('employeeSearch');
+  const sort = document.getElementById('employeeSort');
+  const tbody = document.getElementById('employeeTableBody');
+  if (!search || !sort || !tbody) return;
+  function refresh() {
+    const q = search.value.trim().toLowerCase();
+    const rows = Array.from(tbody.querySelectorAll('tr[data-name]'));
+    rows.forEach(row => row.style.display = row.dataset.name.includes(q) ? '' : 'none');
+    rows.sort((a,b) => {
+      if (sort.value === 'name-desc') return b.dataset.name.localeCompare(a.dataset.name);
+      if (sort.value === 'active-first') return (Number(b.dataset.active)-Number(a.dataset.active)) || a.dataset.name.localeCompare(b.dataset.name);
+      if (sort.value === 'inactive-first') return (Number(a.dataset.active)-Number(b.dataset.active)) || a.dataset.name.localeCompare(b.dataset.name);
+      return a.dataset.name.localeCompare(b.dataset.name);
+    });
+    rows.forEach(row => tbody.appendChild(row));
+  }
+  search.addEventListener('input', refresh);
+  sort.addEventListener('change', refresh);
+})();
+</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
