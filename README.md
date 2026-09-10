@@ -120,8 +120,5 @@ The Admin dashboard now includes a NewSouth section where multiple employees can
 ## One-page NewSouth export
 The multi-employee NewSouth report is compressed so two selected employees, such as Maria and Vicente, print on the same letter-size PDF page with one NewSouth table stacked above the other.
 
-## Cleaner Admin layout
-The Admin dashboard has been reorganized into a compact header, two summary metrics, grouped employee/report cards, collapsible settings, and a streamlined employee action list. Existing functionality is unchanged.
-
-## Spaced one-page NewSouth layout
-The multi-employee NewSouth PDF keeps two employees on one page, but now adds more whitespace and a clearer divider between the two stacked tables for easier reading.
+## Revised NewSouth one-page spacing
+The NewSouth multi-employee PDF uses a clearly larger blank gap between employee tables. Unused blank entry rows inside each table were reduced so two employee tables still fit on one letter-size page. The Admin page remains on the earlier layout.

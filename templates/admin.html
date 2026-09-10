@@ -11,315 +11,290 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-<div class="container py-4 admin-page">
-
-  <header class="admin-header mb-3">
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 mobile-header">
     <div>
-      <div class="admin-eyebrow">{{ settings.company_name }}</div>
-      <h1 class="admin-title mb-1">{{ settings.app_name }} Admin</h1>
-      <div class="text-secondary small">
-        {{ week_start.strftime('%m/%d/%Y') }} - {{ week_end.strftime('%m/%d/%Y') }}
-      </div>
+      <div class="text-secondary small">{{ settings.company_name }}</div>
+      <h1 class="h3 mb-1">{{ settings.app_name }} Admin</h1>
+      <div class="text-secondary">Week of {{ week_start.strftime('%m/%d/%Y') }} - {{ week_end.strftime('%m/%d/%Y') }}</div>
     </div>
-
-    <div class="admin-header-actions">
-      <form method="get" action="{{ url_for('admin_dashboard') }}" class="week-picker">
-        <input class="form-control form-control-sm" type="date" name="week" value="{{ week_start.isoformat() }}">
-        <button class="btn btn-sm btn-outline-primary">View</button>
+    <div class="d-flex flex-wrap gap-2 admin-top-actions">
+      <form method="get" action="{{ url_for('admin_dashboard') }}" class="d-flex gap-2">
+        <input class="form-control" type="date" name="week" value="{{ week_start.isoformat() }}">
+        <button class="btn btn-outline-primary">View Week</button>
       </form>
-      <form method="post" action="{{ url_for('admin_logout') }}">
-        <button class="btn btn-sm btn-outline-dark">Log Out</button>
-      </form>
+      <form method="post" action="{{ url_for('admin_logout') }}"><button class="btn btn-outline-dark">Log Out</button></form>
     </div>
-  </header>
+  </div>
 
   {% with messages=get_flashed_messages(with_categories=true) %}
-    {% for category,message in messages %}
-      <div class="alert alert-{{ category }} py-2">{{ message }}</div>
-    {% endfor %}
+    {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
   {% endwith %}
 
-  <section class="admin-stat-row mb-3">
-    <div class="admin-stat-card">
-      <div class="admin-stat-label">Active Employees</div>
-      <div class="admin-stat-value">{{ summary.active_employees }}</div>
+  <section class="admin-summary-grid admin-summary-compact mb-3">
+    <div class="card shadow-sm summary-card">
+      <div class="card-body">
+        <div class="summary-label">Active Employees</div>
+        <div class="summary-number">{{ summary.active_employees }}</div>
+      </div>
     </div>
-    <div class="admin-stat-card">
-      <div class="admin-stat-label">Hours This Week</div>
-      <div class="admin-stat-value">{{ '%.2f'|format(summary.hours_this_week) }}</div>
+    <div class="card shadow-sm summary-card">
+      <div class="card-body">
+        <div class="summary-label">Hours This Week</div>
+        <div class="summary-number">{{ '%.2f'|format(summary.hours_this_week) }}</div>
+      </div>
     </div>
   </section>
 
-  <section class="admin-grid mb-3">
-    <div class="admin-panel">
-      <div class="admin-panel-head">
-        <div>
-          <div class="admin-section-kicker">Employee Setup</div>
-          <h2 class="admin-panel-title">Add Employee</h2>
-        </div>
+  <div class="admin-section-grid mb-4">
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-kicker">Employee Setup</div>
+        <h2 class="h5 mb-3">Add Employee</h2>
+        <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
+          <div class="col-md-7"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
+          <div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
+          <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary admin-add-btn">Add Employee</button></div>
+        </form>
       </div>
-      <form class="row g-2" method="post" action="{{ url_for('admin_add_employee') }}">
-        <div class="col-md-7">
-          <label class="form-label small">Employee Name</label>
-          <input class="form-control" name="employee_name" required>
-        </div>
-        <div class="col-md-5">
-          <label class="form-label small">Temporary PIN</label>
-          <input class="form-control" name="pin" type="password" inputmode="numeric"
-                 pattern="[0-9]{4,6}" minlength="4" maxlength="6" required>
-        </div>
-        <div class="col-12">
-          <button class="btn btn-primary w-100">Add Employee</button>
-        </div>
-      </form>
-    </div>
+    </section>
 
-    <div class="admin-panel">
-      <div class="admin-panel-head">
-        <div>
-          <div class="admin-section-kicker">Reports</div>
-          <h2 class="admin-panel-title">Bulk Download</h2>
-        </div>
-      </div>
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-kicker">Weekly Reports</div>
+        <h2 class="h5 mb-2">Bulk Download</h2>
+        <div class="text-secondary small mb-3">Choose the employees to include for the selected week.</div>
 
-      <form method="get" id="bulkReportForm">
-        <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
-        <div class="report-toolbar mb-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllReports">Select All</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllReports">Clear</button>
-          <span id="selectedReportCount" class="small text-secondary"></span>
-        </div>
+        <form method="get" id="bulkReportForm">
+          <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
 
-        <div class="employee-check-list mb-2">
-          {% for employee in employees %}
-          <label class="employee-check-row">
-            <input class="form-check-input bulk-report-employee" type="checkbox"
-                   name="employee_id" value="{{ employee.id }}" {% if employee.active %}checked{% endif %}>
-            <span>{{ employee.employee_name }}</span>
-          </label>
-          {% endfor %}
-        </div>
-
-        <div class="d-grid gap-2">
-          <button class="btn btn-primary btn-sm" formaction="{{ url_for('admin_bulk_weekly_pdf') }}">
-            Download Selected PDF
-          </button>
-          <button class="btn btn-outline-primary btn-sm" formaction="{{ url_for('admin_bulk_weekly_csv') }}">
-            Download Selected CSV
-          </button>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <section class="admin-panel mb-3">
-    <div class="admin-panel-head">
-      <div>
-        <div class="admin-section-kicker">NewSouth</div>
-        <h2 class="admin-panel-title">NewSouth PDF</h2>
-      </div>
-    </div>
-
-    <form method="get" action="{{ url_for('admin_newsouth_multi_pdf') }}">
-      <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label small">Job #</label>
-          <input class="form-control form-control-sm" name="job_number" value="25.562">
-        </div>
-        <div class="col-md-9">
-          <div class="report-toolbar mb-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllNewSouth">Select All</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllNewSouth">Clear</button>
-            <span id="selectedNewSouthCount" class="small text-secondary"></span>
+          <div class="bulk-employee-toolbar d-flex flex-wrap gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllReports">Select All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllReports">Clear</button>
+            <span class="small text-secondary align-self-center" id="selectedReportCount"></span>
           </div>
-          <div class="employee-check-list compact">
+
+          <div class="bulk-employee-list mb-3">
             {% for employee in employees %}
-            <label class="employee-check-row">
-              <input class="form-check-input newsouth-employee" type="checkbox"
-                     name="employee_id" value="{{ employee.id }}"
-                     {% if 'maria' in employee.employee_name|lower or 'vicente' in employee.employee_name|lower %}checked{% endif %}>
-              <span>{{ employee.employee_name }}
-                {% if 'vicente' in employee.employee_name|lower %}
-                  <span class="text-secondary small"> · CC# 011025.5</span>
-                {% elif 'maria' in employee.employee_name|lower %}
-                  <span class="text-secondary small"> · CC# 011501.5</span>
+            <label class="bulk-employee-option">
+              <input class="form-check-input bulk-report-employee" type="checkbox"
+                     name="employee_id" value="{{ employee.id }}" {% if employee.active %}checked{% endif %}>
+              <span>
+                <strong>{{ employee.employee_name }}</strong>
+                {% if employee.active %}
+                  <span class="badge text-bg-success ms-1">Active</span>
+                {% else %}
+                  <span class="badge text-bg-secondary ms-1">Inactive</span>
                 {% endif %}
               </span>
             </label>
             {% endfor %}
           </div>
-        </div>
-        <div class="col-12">
-          <button class="btn btn-primary btn-sm">Download NewSouth PDF</button>
+
+          <div class="d-grid gap-2">
+            <button class="btn btn-primary"
+                    formaction="{{ url_for('admin_bulk_weekly_pdf') }}">
+              Download Selected PDF
+            </button>
+            <button class="btn btn-outline-primary"
+                    formaction="{{ url_for('admin_bulk_weekly_csv') }}">
+              Download Selected CSV
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  
+<section class="card shadow-sm admin-section-card mb-4">
+  <div class="card-body">
+    <div class="admin-section-kicker">NewSouth</div>
+    <h2 class="h5 mb-2">NewSouth PDF</h2>
+    <div class="text-secondary small mb-3">
+      Select one or more employees to place on one PDF. Each employee prints on their own NewSouth table.
+    </div>
+
+    <form method="get" action="{{ url_for('admin_newsouth_multi_pdf') }}">
+      <input type="hidden" name="week" value="{{ week_start.isoformat() }}">
+
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Job #</label>
+          <input class="form-control" name="job_number" value="25.562">
         </div>
       </div>
+
+      <div class="bulk-employee-toolbar d-flex flex-wrap gap-2 mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllNewSouth">Select All</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAllNewSouth">Clear</button>
+        <span class="small text-secondary align-self-center" id="selectedNewSouthCount"></span>
+      </div>
+
+      <div class="bulk-employee-list mb-3">
+        {% for employee in employees %}
+        <label class="bulk-employee-option">
+          <input class="form-check-input newsouth-employee" type="checkbox"
+                 name="employee_id" value="{{ employee.id }}"
+                 {% if 'maria' in employee.employee_name|lower or 'vicente' in employee.employee_name|lower %}checked{% endif %}>
+          <span>
+            <strong>{{ employee.employee_name }}</strong>
+            {% if 'vicente' in employee.employee_name|lower %}
+              <span class="small text-secondary ms-2">CC# 011025.5</span>
+            {% elif 'maria' in employee.employee_name|lower %}
+              <span class="small text-secondary ms-2">CC# 011501.5</span>
+            {% endif %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <button class="btn btn-primary" type="submit">Download NewSouth PDF</button>
     </form>
-  </section>
+  </div>
+</section>
 
-  <section class="admin-panel mb-3">
-    <button class="settings-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#adminSettings" aria-expanded="false">
-      <span>
-        <span class="admin-section-kicker d-block">Application Settings</span>
-        <strong>Admin Settings</strong>
-      </span>
-      <span class="text-secondary">Show / Hide</span>
-    </button>
-
-    <div class="collapse mt-3" id="adminSettings">
-      <form class="row g-2" method="post" action="{{ url_for('admin_settings') }}">
-        <div class="col-md-6">
-          <label class="form-label small">Company Name</label>
-          <input class="form-control form-control-sm" name="company_name" value="{{ settings.company_name }}" required>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label small">App Name</label>
-          <input class="form-control form-control-sm" name="app_name" value="{{ settings.app_name }}" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small">Overtime Threshold</label>
-          <input class="form-control form-control-sm" type="number" step="0.25" min="1" max="168"
-                 name="overtime_threshold" value="{{ settings.overtime_threshold }}" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small">Timezone</label>
-          <input class="form-control form-control-sm" name="timezone" value="{{ settings.timezone }}" required>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small">Weekly Cutoff</label>
-          <input class="form-control form-control-sm" type="time" name="weekly_cutoff_time"
-                 value="{{ settings.weekly_cutoff_time }}" required>
-        </div>
-        <div class="col-12">
-          <label class="form-label small">Timesheet Email Recipients</label>
-          <textarea class="form-control form-control-sm" name="recipients" rows="2" required>{{ recipients|join(', ') }}</textarea>
-        </div>
-        <div class="col-12">
-          <button class="btn btn-primary btn-sm">Save Settings</button>
-        </div>
+<section class="card shadow-sm admin-section-card mb-4">
+    <div class="card-body">
+      <div class="admin-section-kicker">Application Settings</div>
+      <h2 class="h5 mb-3">Admin Settings</h2>
+      <form class="row g-3" method="post" action="{{ url_for('admin_settings') }}">
+        <div class="col-md-6"><label class="form-label">Company Name</label><input class="form-control" name="company_name" value="{{ settings.company_name }}" required></div>
+        <div class="col-md-6"><label class="form-label">App Name</label><input class="form-control" name="app_name" value="{{ settings.app_name }}" required></div>
+        <div class="col-md-4"><label class="form-label">Overtime Threshold</label><div class="input-group"><input class="form-control" type="number" step="0.25" min="1" max="168" name="overtime_threshold" value="{{ settings.overtime_threshold }}" required><span class="input-group-text">hrs/week</span></div></div>
+        <div class="col-md-4"><label class="form-label">Timezone</label><input class="form-control" name="timezone" value="{{ settings.timezone }}" required></div>
+        <div class="col-md-4"><label class="form-label">Weekly Cutoff Time</label><input class="form-control" type="time" name="weekly_cutoff_time" value="{{ settings.weekly_cutoff_time }}" required></div>
+        <div class="col-12"><label class="form-label">Timesheet Email Recipients</label><textarea class="form-control" name="recipients" rows="3" required>{{ recipients|join(', ') }}</textarea><div class="form-text">Separate multiple addresses with commas, semicolons, or new lines.</div></div>
+        <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary admin-add-btn">Save Settings</button></div>
       </form>
     </div>
   </section>
 
-  <section class="admin-panel">
-    <div class="admin-panel-head employee-panel-head">
-      <div>
-        <div class="admin-section-kicker">Team Management</div>
-        <h2 class="admin-panel-title">Employees</h2>
-      </div>
-      <div class="employee-search-tools">
-        <input id="employeeSearch" class="form-control form-control-sm" type="search" placeholder="Search employees...">
-        <select id="employeeSort" class="form-select form-select-sm">
-          <option value="name-asc">Name A-Z</option>
-          <option value="name-desc">Name Z-A</option>
-          <option value="active-first">Active first</option>
-          <option value="inactive-first">Inactive first</option>
-        </select>
+  <section class="card shadow-sm admin-section-card">
+    <div class="card-body border-bottom">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div><div class="admin-section-kicker">Team Management</div><h2 class="h5 mb-0">Employees</h2></div>
+        <div class="d-flex flex-wrap gap-2 employee-tools">
+          <input id="employeeSearch" class="form-control" type="search" placeholder="Search employees...">
+          <select id="employeeSort" class="form-select">
+            <option value="name-asc">Name A-Z</option>
+            <option value="name-desc">Name Z-A</option>
+            <option value="active-first">Active first</option>
+            <option value="inactive-first">Inactive first</option>
+          </select>
+          <span class="badge rounded-pill text-bg-light border align-self-center">{{ employees|length }} users</span>
+        </div>
       </div>
     </div>
-
-    <div class="employee-list" id="employeeTableBody">
-      {% for employee in employees %}
-      <div class="employee-row" data-name="{{ employee.employee_name|lower }}" data-active="{{ '1' if employee.active else '0' }}">
-        <div class="employee-main">
-          <a href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=week_start.isoformat()) }}" class="employee-name">
-            {{ employee.employee_name }}
-          </a>
-          <div class="employee-meta">
-            {% if employee.active %}
-              <span class="badge text-bg-success">Active</span>
-            {% else %}
-              <span class="badge text-bg-secondary">Inactive</span>
-            {% endif %}
-            {% if employee.must_change_pin %}
-              <span class="badge text-bg-warning">PIN change required</span>
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="employee-actions">
-          <form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}" class="pin-reset-form">
-            <input class="form-control form-control-sm" name="pin" type="password" inputmode="numeric"
-                   pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required>
-            <button class="btn btn-sm btn-outline-primary">Reset PIN</button>
-          </form>
-
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_edit_employee', employee_id=employee.id) }}">
-            Edit
-          </a>
-
-          <form method="post" action="{{ url_for('admin_resend_current_week', employee_id=employee.id) }}"
-                onsubmit="return confirm('Resend {{ employee.employee_name|e }}\'s current-week timesheet?');">
-            <button class="btn btn-sm btn-outline-primary">Resend</button>
-          </form>
-
-          <form method="post" action="{{ url_for('admin_toggle_employee', employee_id=employee.id) }}">
-            <button class="btn btn-sm {{ 'btn-outline-danger' if employee.active else 'btn-outline-success' }}">
-              {{ 'Deactivate' if employee.active else 'Reactivate' }}
-            </button>
-          </form>
-
-          <form method="post" action="{{ url_for('admin_delete_employee', employee_id=employee.id) }}"
-                onsubmit="return confirm('Delete {{ employee.employee_name|e }}\'s login account? Historical timesheets will be kept.');">
-            <button class="btn btn-sm btn-danger">Delete</button>
-          </form>
-        </div>
-      </div>
-      {% else %}
-      <div class="text-center text-secondary py-4">No employee accounts yet.</div>
-      {% endfor %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 mobile-stack-table admin-employee-table">
+        <thead><tr><th>Employee</th><th>Status</th><th>Reset PIN</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
+        <tbody id="employeeTableBody">
+        {% for employee in employees %}
+          <tr data-name="{{ employee.employee_name|lower }}" data-active="{{ '1' if employee.active else '0' }}">
+            <td data-label="Employee" class="fw-semibold mobile-day"><a href="{{ url_for('admin_employee_timesheet', employee_id=employee.id, week=week_start.isoformat()) }}" class="text-decoration-none">{{ employee.employee_name }}</a></td>
+            <td data-label="Status">{% if employee.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}{% if employee.must_change_pin %}<div class="small text-warning-emphasis mt-1">PIN change required</div>{% endif %}</td>
+            <td data-label="Reset PIN"><form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}"><div class="d-flex gap-2"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div></form></td>
+            <td data-label="Access" class="action-cell"><form method="post" action="{{ url_for('admin_toggle_employee', employee_id=employee.id) }}"><button class="btn btn-sm {{ 'btn-outline-danger' if employee.active else 'btn-outline-success' }}">{{ 'Deactivate' if employee.active else 'Reactivate' }}</button></form></td>
+            <td data-label="Email" class="action-cell"><form method="post" action="{{ url_for('admin_resend_current_week', employee_id=employee.id) }}" onsubmit="return confirm('Resend {{ employee.employee_name|e }}\'s current-week timesheet?');"><button class="btn btn-sm btn-outline-primary">Resend Current Week</button></form></td>
+            <td data-label="Edit" class="action-cell"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_edit_employee', employee_id=employee.id) }}">Edit User</a></td>
+            <td data-label="Delete" class="action-cell"><form method="post" action="{{ url_for('admin_delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Delete {{ employee.employee_name|e }}\'s login account? Historical timesheets will be kept.');"><button class="btn btn-sm btn-danger">Delete User</button></form></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="text-center text-secondary py-4">No employee accounts yet.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 </div>
-
 <script>
 (function () {
   const search = document.getElementById('employeeSearch');
   const sort = document.getElementById('employeeSort');
-  const container = document.getElementById('employeeTableBody');
-  if (!search || !sort || !container) return;
-
-  function refreshEmployees() {
+  const tbody = document.getElementById('employeeTableBody');
+  if (!search || !sort || !tbody) return;
+  function refresh() {
     const q = search.value.trim().toLowerCase();
-    const rows = Array.from(container.querySelectorAll('.employee-row'));
-    rows.forEach(row => {
-      row.style.display = row.dataset.name.includes(q) ? '' : 'none';
-    });
-
+    const rows = Array.from(tbody.querySelectorAll('tr[data-name]'));
+    rows.forEach(row => row.style.display = row.dataset.name.includes(q) ? '' : 'none');
     rows.sort((a,b) => {
       if (sort.value === 'name-desc') return b.dataset.name.localeCompare(a.dataset.name);
       if (sort.value === 'active-first') return (Number(b.dataset.active)-Number(a.dataset.active)) || a.dataset.name.localeCompare(b.dataset.name);
       if (sort.value === 'inactive-first') return (Number(a.dataset.active)-Number(b.dataset.active)) || a.dataset.name.localeCompare(b.dataset.name);
       return a.dataset.name.localeCompare(b.dataset.name);
     });
-    rows.forEach(row => container.appendChild(row));
+    rows.forEach(row => tbody.appendChild(row));
   }
-
-  search.addEventListener('input', refreshEmployees);
-  sort.addEventListener('change', refreshEmployees);
+  search.addEventListener('input', refresh);
+  sort.addEventListener('change', refresh);
 })();
+</script>
+<script>
 
 (function () {
-  function wire(prefix, selector) {
-    const boxes = Array.from(document.querySelectorAll(selector));
-    const all = document.getElementById('selectAll' + prefix);
-    const clear = document.getElementById('clearAll' + prefix);
-    const count = document.getElementById('selected' + prefix + 'Count');
+  const boxes = Array.from(document.querySelectorAll('.bulk-report-employee'));
+  const selectAll = document.getElementById('selectAllReports');
+  const clearAll = document.getElementById('clearAllReports');
+  const count = document.getElementById('selectedReportCount');
 
-    function update() {
-      if (count) count.textContent = boxes.filter(b => b.checked).length + ' selected';
-    }
-    if (all) all.addEventListener('click', () => { boxes.forEach(b => b.checked = true); update(); });
-    if (clear) clear.addEventListener('click', () => { boxes.forEach(b => b.checked = false); update(); });
-    boxes.forEach(b => b.addEventListener('change', update));
-    update();
+  function updateCount() {
+    if (!count) return;
+    const selected = boxes.filter(box => box.checked).length;
+    count.textContent = selected + ' selected';
   }
-  wire('Report', '.bulk-report-employee');
-  wire('NewSouth', '.newsouth-employee');
+
+  if (selectAll) {
+    selectAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = true);
+      updateCount();
+    });
+  }
+
+  if (clearAll) {
+    clearAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = false);
+      updateCount();
+    });
+  }
+
+  boxes.forEach(box => box.addEventListener('change', updateCount));
+  updateCount();
+})();
+
+</script>
+
+<script>
+(function () {
+  const boxes = Array.from(document.querySelectorAll('.newsouth-employee'));
+  const selectAll = document.getElementById('selectAllNewSouth');
+  const clearAll = document.getElementById('clearAllNewSouth');
+  const count = document.getElementById('selectedNewSouthCount');
+
+  function updateCount() {
+    if (!count) return;
+    count.textContent = boxes.filter(box => box.checked).length + ' selected';
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = true);
+      updateCount();
+    });
+  }
+
+  if (clearAll) {
+    clearAll.addEventListener('click', function () {
+      boxes.forEach(box => box.checked = false);
+      updateCount();
+    });
+  }
+
+  boxes.forEach(box => box.addEventListener('change', updateCount));
+  updateCount();
 })();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

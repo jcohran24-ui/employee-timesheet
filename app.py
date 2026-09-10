@@ -905,7 +905,7 @@ def admin_employee_newsouth_pdf(employee_id):
         ('TOPPADDING', (0,0), (-1,-1), 5),
         ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
-    story += [header_table, Spacer(1, 4)]
+    story += [header_table, Spacer(1, 5)]
 
     day_headers = []
     for r in rows:
@@ -947,7 +947,7 @@ def admin_employee_newsouth_pdf(employee_id):
     ]
 
     # Add six blank rows to match the NewSouth paper layout.
-    for _ in range(6):
+    for _ in range(4):
         table_data.append(['', '', '', '', '', '', '', '', '', '', ''])
 
     table_data.append([
@@ -958,14 +958,14 @@ def admin_employee_newsouth_pdf(employee_id):
     ])
 
     col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
-    ns_table = Table(table_data, colWidths=col_widths, rowHeights=[19, 19, 21, 19] + [12]*6 + [19])
+    ns_table = Table(table_data, colWidths=col_widths, rowHeights=[20, 20, 22, 20] + [13]*4 + [20])
     yellow = colors.HexColor('#FFF98A')
     ns_table.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.7, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,2), (-1,-1), 7.3),
+        ('FONTSIZE', (0,2), (-1,-1), 7.5),
         ('BACKGROUND', (2,0), (8,0), yellow),
         ('BACKGROUND', (9,0), (10,0), yellow),
         ('BACKGROUND', (10,1), (10,-1), yellow),
@@ -1044,7 +1044,7 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
         ],
     ]
 
-    for _ in range(6):
+    for _ in range(4):
         table_data.append(['', '', '', '', '', '', '', '', '', '', ''])
 
     table_data.append([
@@ -1055,14 +1055,14 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
     ])
 
     col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
-    table = Table(table_data, colWidths=col_widths, rowHeights=[19, 19, 21, 19] + [12]*6 + [19])
+    table = Table(table_data, colWidths=col_widths, rowHeights=[20, 20, 22, 20] + [13]*4 + [20])
     yellow = colors.HexColor('#FFF98A')
     table.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.7, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,2), (-1,-1), 7.3),
+        ('FONTSIZE', (0,2), (-1,-1), 7.5),
         ('BACKGROUND', (2,0), (8,0), yellow),
         ('BACKGROUND', (9,0), (10,0), yellow),
         ('BACKGROUND', (10,1), (10,-1), yellow),
@@ -1147,13 +1147,13 @@ def admin_newsouth_multi_pdf():
             ('TOPPADDING', (0,0), (-1,-1), 2),
             ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]))
-        story += [header_table, Spacer(1, 4)]
+        story += [header_table, Spacer(1, 5)]
 
         ns_table, rows, total_regular, total_overtime = build_newsouth_employee_table(
             employee, week_start, job_number, cc_number
         )
         story.append(ns_table)
-        story.append(Spacer(1, 2))
+        story.append(Spacer(1, 3))
         story.append(Paragraph(
             f'Regular Hours: {total_regular:.2f} &nbsp;&nbsp;&nbsp; '
             f'Overtime Hours: {total_overtime:.2f} &nbsp;&nbsp;&nbsp; '
@@ -1162,11 +1162,7 @@ def admin_newsouth_multi_pdf():
         ))
 
         if idx < len(employees) - 1:
-            story.append(Spacer(1, 8))
-            divider = Table([['']], colWidths=[540], rowHeights=[1])
-            divider.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#b8b8b8'))]))
-            story.append(divider)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 18))
 
     doc.build(story)
     buffer.seek(0)
