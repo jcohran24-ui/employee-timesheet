@@ -67,7 +67,6 @@ Add these environment variables to the Render Web Service:
 
 - `APP_BASE_URL` — optional but recommended public app URL, e.g. `https://employee-timesheet.onrender.com`
 
-The Admin page now stores an employee phone number. On employee creation, checking **Send Welcome Text** sends the app login link, employee name, and temporary PIN. Because PINs are stored only as secure hashes, old PINs cannot be recovered. To resend login info later, enter a new temporary PIN in **Reset PIN**, check **Text new PIN to employee**, and submit.
 
 Existing databases are upgraded automatically with a nullable `phone_number` column on `employee_account`.
 
@@ -97,4 +96,3 @@ The employee timesheet, admin dashboard, and admin employee detail page automati
 
 
 ## Edit employee profiles
-Admins can use **Edit User** to change an employee name, phone number, and active status. Renaming an employee also updates that employee's historical timesheet and email-submission records. PIN reset remains a separate security action.

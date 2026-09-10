@@ -14,11 +14,36 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-<div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
-          <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="send_welcome_text" value="1" id="sendWelcome" checked></div>
-            <button class="btn btn-primary admin-add-btn">Add Employee</button>
-          </div>
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4 mobile-header">
+    <div><h1 class="h3 mb-1">Timesheet Admin</h1><div class="text-secondary">Manage employees and timesheet delivery</div></div>
+    <form class="logout-form" method="post" action="{{ url_for('admin_logout') }}"><button class="btn btn-outline-dark">Log Out</button></form>
+  </div>
+
+  {% with messages=get_flashed_messages(with_categories=true) %}
+    {% for category,message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="admin-section-grid mb-4">
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-heading"><div><div class="admin-section-kicker">Notifications</div><h2 class="h5 mb-1">Timesheet Email Recipients</h2></div></div>
+        <form method="post" action="{{ url_for('admin_email_recipients') }}">
+          <label class="form-label">Send completed timesheets to</label>
+          <textarea class="form-control" name="recipients" rows="4" required>{{ recipients|join(', ') }}</textarea>
+          <div class="form-text">Separate addresses with commas, semicolons, or new lines.</div>
+          <button class="btn btn-primary mt-3 mobile-full-btn">Save Email Recipients</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card shadow-sm admin-section-card">
+      <div class="card-body">
+        <div class="admin-section-heading"><div><div class="admin-section-kicker">Employee Setup</div><h2 class="h5 mb-1">Add Employee</h2></div></div>
+        <form class="row g-3" method="post" action="{{ url_for('admin_add_employee') }}">
+          <div class="col-md-7"><label class="form-label">Employee Name</label><input class="form-control" name="employee_name" required></div>
+          <div class="col-md-5"><label class="form-label">Temporary PIN</label><input class="form-control" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required></div>
+          <div class="col-12 d-flex justify-content-end"><button class="btn btn-primary admin-add-btn">Add Employee</button></div>
         </form>
       </div>
     </section>
@@ -27,16 +52,13 @@
   <section class="card shadow-sm admin-section-card">
     <div class="card-body border-bottom pb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div class="admin-section-kicker">Team Management</div>
-          <h2 class="h5 mb-0">Employees</h2>
-        </div>
+        <div><div class="admin-section-kicker">Team Management</div><h2 class="h5 mb-0">Employees</h2></div>
         <span class="badge rounded-pill text-bg-light border">{{ employees|length }} users</span>
       </div>
     </div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 mobile-stack-table admin-employee-table">
-        <thead><tr><th>Employee</th><th>Status</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Status</th><th style="min-width:220px">Reset PIN</th><th>Access</th><th>Email</th><th>Edit</th><th>Delete</th></tr></thead>
         <tbody>
         {% for employee in employees %}
           <tr>
@@ -45,15 +67,9 @@
               {% if employee.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}
               {% if employee.must_change_pin %}<div class="small text-warning-emphasis mt-1">PIN change required</div>{% endif %}
             </td>
-            <td data-label="Phone">
-              <form class="d-flex gap-2" method="post" action="{{ url_for('admin_update_phone', employee_id=employee.id) }}">
-                <button class="btn btn-sm btn-outline-secondary">Save</button>
-              </form>
-            </td>
-            <td data-label="Reset PIN / Text">
+            <td data-label="Reset PIN">
               <form method="post" action="{{ url_for('admin_reset_pin', employee_id=employee.id) }}">
-                <div class="d-flex gap-2 mb-1"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div>
-                <div class="form-check"><input class="form-check-input" type="checkbox" name="send_login_text" value="1" id="sendText{{ employee.id }}"></div>
+                <div class="d-flex gap-2"><input class="form-control form-control-sm" style="max-width:130px" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Temp PIN" required><button class="btn btn-sm btn-outline-primary">Reset</button></div>
               </form>
             </td>
             <td data-label="Access" class="action-cell"><form method="post" action="{{ url_for('admin_toggle_employee', employee_id=employee.id) }}"><button class="btn btn-sm {{ 'btn-outline-danger' if employee.active else 'btn-outline-success' }}">{{ 'Deactivate' if employee.active else 'Reactivate' }}</button></form></td>
@@ -62,7 +78,7 @@
             <td data-label="Delete" class="action-cell"><form method="post" action="{{ url_for('admin_delete_employee', employee_id=employee.id) }}" onsubmit="return confirm('Delete {{ employee.employee_name|e }}\'s login account? Historical timesheets will be kept.');"><button class="btn btn-sm btn-danger">Delete User</button></form></td>
           </tr>
         {% else %}
-          <tr><td colspan="8" class="text-center text-secondary py-4">No employee accounts yet.</td></tr>
+          <tr><td colspan="7" class="text-center text-secondary py-4">No employee accounts yet.</td></tr>
         {% endfor %}
         </tbody>
       </table>
