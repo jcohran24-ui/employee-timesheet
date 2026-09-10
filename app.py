@@ -952,55 +952,55 @@ def admin_employee_hirequest_pdf(employee_id):
 
     # Second header row
     second_y = page_height - top_h - 1
-    second_h = 52
+    second_h = 78
     left2_w = 500
     right2_w = page_width - left2_w - 2
     _hq_draw_rect(pdf, 1, second_y - second_h, left2_w, second_h, line=0.8)
     _hq_draw_rect(pdf, left2_w + 1, second_y - second_h, right2_w, second_h, line=0.8)
 
     # Customer / Job site
-    pdf.setFont('Helvetica-Bold', 11)
-    pdf.drawString(8, second_y - 18, 'Customer')
-    pdf.drawString(8, second_y - 38, 'Job Site')
-    pdf.setFont('Helvetica', 10.5)
-    pdf.drawString(118, second_y - 18, 'NEW SOUTH CONSTRUCTION')
-    pdf.drawString(118, second_y - 34, 'CTCC OASIS')
-    pdf.drawString(118, second_y - 50, '155 WEST PACES FERRY RD NW')
-    pdf.drawString(118, second_y - 66, 'ATLANTA, GA 30305')
+    pdf.setFont('Helvetica-Bold', 10)
+    pdf.drawString(8, second_y - 19, 'Customer')
+    pdf.drawString(8, second_y - 43, 'Job Site')
+    pdf.setFont('Helvetica', 9.5)
+    pdf.drawString(118, second_y - 19, 'NEW SOUTH CONSTRUCTION')
+    pdf.drawString(118, second_y - 39, 'CTCC OASIS')
+    pdf.drawString(118, second_y - 54, '155 WEST PACES FERRY RD NW')
+    pdf.drawString(118, second_y - 69, 'ATLANTA, GA 30305')
 
     # Right side: DATE + PO + report info
     rx = left2_w + 10
-    pdf.setFont('Helvetica', 9)
+    pdf.setFont('Helvetica', 8.5)
     pdf.drawString(rx, second_y - 14, 'DATE')
-    pdf.setFont('Helvetica-Bold', 10)
-    pdf.drawString(rx + 38, second_y - 14, _hq_fmt_date(week_start))
+    pdf.setFont('Helvetica-Bold', 9.5)
+    pdf.drawString(rx + 35, second_y - 14, _hq_fmt_date(week_start))
 
     po_x, po_w = left2_w + 115, 150
-    _hq_draw_rect(pdf, po_x, second_y - 24, po_w, 22, line=0.6)
+    _hq_draw_rect(pdf, po_x, second_y - 27, po_w, 24, line=0.6)
     pdf.setFillColor(label_fill)
-    pdf.rect(po_x, second_y - 2, po_w, 10, fill=1, stroke=0)
+    pdf.rect(po_x, second_y - 3, po_w, 10, fill=1, stroke=0)
     pdf.setFillColor(colors.white)
-    pdf.setFont('Helvetica', 6.5)
-    pdf.drawCentredString(po_x + po_w / 2, second_y + 4, 'Customer P.O. Number')
+    pdf.setFont('Helvetica', 6.2)
+    pdf.drawCentredString(po_x + po_w / 2, second_y + 3, 'Customer P.O. Number')
     pdf.setFillColor(colors.black)
-    pdf.setFont('Helvetica-Bold', 9.5)
-    pdf.drawString(po_x + 10, second_y - 15, '25-562')
+    pdf.setFont('Helvetica-Bold', 9)
+    pdf.drawString(po_x + 10, second_y - 19, '25-562')
 
-    pdf.setFont('Helvetica', 8.5)
-    pdf.drawString(rx, second_y - 30, 'REPORT TO: JODY 404-952-5115')
-    pdf.drawString(rx + 205, second_y - 30, 'TIME: 07:00 AM')
-    pdf.drawString(rx, second_y - 46, 'DUTIES: 1 SKILLED - SKILLED')
-    pdf.drawString(rx, second_y - 62, 'GATE GUARD')
+    pdf.setFont('Helvetica', 7.8)
+    pdf.drawString(rx, second_y - 38, 'REPORT TO: JODY 404-952-5115')
+    pdf.drawString(rx + 180, second_y - 38, 'TIME: 07:00 AM')
+    pdf.drawString(rx, second_y - 54, 'DUTIES: 1 SKILLED - SKILLED')
+    pdf.drawString(rx, second_y - 69, 'GATE GUARD')
 
     # Directions/notes strip
-    dir_y = second_y - second_h - 21
-    _hq_draw_rect(pdf, 1, dir_y, page_width - 2, 21, line=0.8)
+    dir_y = second_y - second_h - 18
+    _hq_draw_rect(pdf, 1, dir_y, page_width - 2, 18, line=0.8)
     pdf.setFont('Helvetica', 8.5)
-    pdf.drawString(6, dir_y + 6, 'Directions/Notes:')
+    pdf.drawString(6, dir_y + 5, 'Directions/Notes:')
 
     # --- Main time table ---
     table_top = dir_y
-    table_bottom = 118
+    table_bottom = 104
     table_h = table_top - table_bottom
     _hq_draw_rect(pdf, 1, table_bottom, page_width - 2, table_h, line=0.8)
 
@@ -1027,7 +1027,7 @@ def admin_employee_hirequest_pdf(employee_id):
             pdf.drawCentredString(cx, head_y, hdr)
 
     # Row lines
-    row_h = 24
+    row_h = 22
     first_row_top = table_top - header_h
     row_lines = [first_row_top - i * row_h for i in range(0, 9)]
     for y in row_lines:
@@ -1053,7 +1053,7 @@ def admin_employee_hirequest_pdf(employee_id):
 
     # Footer note
     note_top = table_bottom
-    note_bottom = 78
+    note_bottom = 66
     _hq_draw_rect(pdf, 1, note_bottom, page_width - 2, note_top - note_bottom, line=0.8)
     pdf.setFont('Helvetica', 7.1)
     pdf.drawString(4, note_top - 14, 'Attention Supervisors: Please fill the hours worked by employees, sign, and tear at perforation.')
@@ -1061,7 +1061,7 @@ def admin_employee_hirequest_pdf(employee_id):
     pdf.drawString(4, note_top - 36, 'agrees to the terms on the reverse side of this ticket.')
 
     # Signature / repeat workers
-    sig_bottom = 16
+    sig_bottom = 10
     _hq_draw_rect(pdf, 1, sig_bottom, page_width - 2, note_bottom - sig_bottom, line=0.8)
     repeat_w = 238
     repeat_x = page_width - repeat_w - 1

@@ -128,3 +128,6 @@ The HireQuest option now uses the supplied HireQuest Direct ticket image as the 
 
 ## Clean vector HireQuest ticket
 The HireQuest export no longer places text on top of a fuzzy image. Instead, the ticket is redrawn directly in PDF using crisp lines and text so it keeps the same look while printing much cleaner. The only ticket field that changes automatically is the date, which follows the selected week.
+
+## HireQuest overlap fix
+The clean vector HireQuest ticket now uses a taller customer/job-site information block and a lower time-entry grid so the address, report-to, time, duties, and other header data stay inside their own cells without overlapping the table.
