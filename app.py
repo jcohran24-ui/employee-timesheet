@@ -18,7 +18,6 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 import re
-from reportlab.platypus import PageBreak
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
@@ -797,8 +796,8 @@ def admin_employee_timesheet_pdf(employee_id):
             ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#f3f5f7')),
             ('BACKGROUND', (2,0), (2,-1), colors.HexColor('#f3f5f7')),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]))
         story += [info_table, Spacer(1, 14)]
 
@@ -866,20 +865,20 @@ def admin_employee_newsouth_pdf(employee_id):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=26,
-        leftMargin=26,
-        topMargin=24,
-        bottomMargin=24,
+        rightMargin=18,
+        leftMargin=18,
+        topMargin=14,
+        bottomMargin=14,
         title=f'NewSouth Timesheet - {employee.employee_name}'
     )
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
         'NSTitle', parent=styles['Heading1'], fontName='Helvetica-Bold',
-        fontSize=15, leading=17, spaceAfter=4
+        fontSize=11, leading=12, spaceAfter=2
     )
     small = ParagraphStyle(
-        'NSSmall', parent=styles['BodyText'], fontSize=8.5, leading=10
+        'NSSmall', parent=styles['BodyText'], fontSize=7.2, leading=8
     )
     small_center = ParagraphStyle(
         'NSSmallCenter', parent=small, alignment=TA_CENTER
@@ -906,7 +905,7 @@ def admin_employee_newsouth_pdf(employee_id):
         ('TOPPADDING', (0,0), (-1,-1), 5),
         ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
-    story += [header_table, Spacer(1, 14)]
+    story += [header_table, Spacer(1, 5)]
 
     day_headers = []
     for r in rows:
@@ -959,14 +958,14 @@ def admin_employee_newsouth_pdf(employee_id):
     ])
 
     col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
-    ns_table = Table(table_data, colWidths=col_widths, rowHeights=[28, 28, 34, 30] + [28]*6 + [30])
+    ns_table = Table(table_data, colWidths=col_widths, rowHeights=[20, 20, 22, 20] + [14]*6 + [20])
     yellow = colors.HexColor('#FFF98A')
     ns_table.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.7, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,2), (-1,-1), 9),
+        ('FONTSIZE', (0,2), (-1,-1), 7.5),
         ('BACKGROUND', (2,0), (8,0), yellow),
         ('BACKGROUND', (9,0), (10,0), yellow),
         ('BACKGROUND', (10,1), (10,-1), yellow),
@@ -975,8 +974,8 @@ def admin_employee_newsouth_pdf(employee_id):
         ('SPAN', (1,0), (1,1)),
         ('SPAN', (9,0), (10,0)),
         ('SPAN', (0,-1), (1,-1)),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     story.append(ns_table)
 
@@ -1004,7 +1003,7 @@ def admin_employee_newsouth_pdf(employee_id):
 def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_number=''):
     rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
     styles = getSampleStyleSheet()
-    small = ParagraphStyle('NSSmallMulti', parent=styles['BodyText'], fontSize=8.3, leading=10)
+    small = ParagraphStyle('NSSmallMulti', parent=styles['BodyText'], fontSize=7.2, leading=8)
     small_center = ParagraphStyle('NSSmallCenterMulti', parent=small, alignment=TA_CENTER)
 
     day_headers = [
@@ -1056,14 +1055,14 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
     ])
 
     col_widths = [62, 62, 55, 55, 55, 55, 55, 55, 55, 62, 48]
-    table = Table(table_data, colWidths=col_widths, rowHeights=[28, 28, 34, 30] + [28]*6 + [30])
+    table = Table(table_data, colWidths=col_widths, rowHeights=[20, 20, 22, 20] + [14]*6 + [20])
     yellow = colors.HexColor('#FFF98A')
     table.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.7, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTNAME', (0,2), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,2), (-1,-1), 9),
+        ('FONTSIZE', (0,2), (-1,-1), 7.5),
         ('BACKGROUND', (2,0), (8,0), yellow),
         ('BACKGROUND', (9,0), (10,0), yellow),
         ('BACKGROUND', (10,1), (10,-1), yellow),
@@ -1072,8 +1071,8 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
         ('SPAN', (1,0), (1,1)),
         ('SPAN', (9,0), (10,0)),
         ('SPAN', (0,-1), (1,-1)),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     return table, rows, total_regular, total_overtime
 
@@ -1105,19 +1104,19 @@ def admin_newsouth_multi_pdf():
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=26,
-        leftMargin=26,
-        topMargin=24,
-        bottomMargin=24,
+        rightMargin=18,
+        leftMargin=18,
+        topMargin=14,
+        bottomMargin=14,
         title=f'NewSouth Timesheets {week_start.isoformat()}'
     )
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'NSMultiTitle', parent=styles['Heading1'], fontName='Helvetica-Bold',
-        fontSize=15, leading=17, spaceAfter=4
+        fontSize=11, leading=12, spaceAfter=2
     )
     small = ParagraphStyle(
-        'NSMultiSmall', parent=styles['BodyText'], fontSize=8.5, leading=10
+        'NSMultiSmall', parent=styles['BodyText'], fontSize=7.2, leading=8
     )
     small_center = ParagraphStyle(
         'NSMultiSmallCenter', parent=small, alignment=TA_CENTER
@@ -1145,16 +1144,16 @@ def admin_newsouth_multi_pdf():
         header_table.setStyle(TableStyle([
             ('GRID', (1,0), (1,-1), 0.8, colors.black),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]))
-        story += [header_table, Spacer(1, 14)]
+        story += [header_table, Spacer(1, 5)]
 
         ns_table, rows, total_regular, total_overtime = build_newsouth_employee_table(
             employee, week_start, job_number, cc_number
         )
         story.append(ns_table)
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 3))
         story.append(Paragraph(
             f'Regular Hours: {total_regular:.2f} &nbsp;&nbsp;&nbsp; '
             f'Overtime Hours: {total_overtime:.2f} &nbsp;&nbsp;&nbsp; '
@@ -1163,7 +1162,10 @@ def admin_newsouth_multi_pdf():
         ))
 
         if idx < len(employees) - 1:
-            story.append(PageBreak())
+            story.append(Spacer(1, 6))
+            story.append(Table([['']], colWidths=[540], rowHeights=[1],
+                               style=TableStyle([('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#999999'))])))
+            story.append(Spacer(1, 6))
 
     doc.build(story)
     buffer.seek(0)
@@ -1322,8 +1324,8 @@ def build_bulk_timesheet_pdf(week_start: date, employees):
             ('ALIGN', (2,1), (4,-1), 'RIGHT'),
             ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#e9ecef')),
             ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 2),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ]))
         story.extend([table, Spacer(1, 18)])
     if not has_data:

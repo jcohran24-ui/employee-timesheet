@@ -116,3 +116,6 @@ The Admin employee detail page now includes a NewSouth PDF option. It pulls that
 
 ## Multi-employee NewSouth PDF
 The Admin dashboard now includes a NewSouth section where multiple employees can be selected and exported into one PDF. Each selected employee receives a separate NewSouth table/page using that employee's saved hours and the selected week's dates. Maria defaults to CC# 011501.5 and Vicente defaults to CC# 011025.5.
+
+## One-page NewSouth export
+The multi-employee NewSouth report is compressed so two selected employees, such as Maria and Vicente, print on the same letter-size PDF page with one NewSouth table stacked above the other.
