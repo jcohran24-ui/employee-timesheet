@@ -903,7 +903,7 @@ def admin_employee_hirequest_pdf(employee_id):
     overlay.drawString(357, 332, date_text)
 
     # Fill Monday-Sunday hours on the first employee line and calculate total.
-    hour_centers = [394, 420, 446, 473, 499, 526, 552]
+    hour_centers = [390, 416, 442, 469, 495, 522, 548]
     hour_baseline = 227
     overlay.setFont('Helvetica-Bold', 8.8)
     for x, value in zip(hour_centers, daily_hours):
@@ -914,7 +914,7 @@ def admin_employee_hirequest_pdf(employee_id):
 
     if abs(total_hours) > 0.001:
         total_display = str(int(total_hours)) if float(total_hours).is_integer() else f'{total_hours:.2f}'.rstrip('0').rstrip('.')
-        overlay.drawCentredString(584, hour_baseline, total_display)
+        overlay.drawCentredString(580, hour_baseline, total_display)
 
     # Place saved signature above the AUTHORIZED SIGNATURE area and stamp today's date beside it.
     signature_path = os.path.join(app.root_path, 'static', 'signature.png')

@@ -137,3 +137,6 @@ The HireQuest PDF now places the saved signature image above the AUTHORIZED SIGN
 
 ## First-name employee login
 Employees now sign in using only their first name and PIN. Their full employee name remains unchanged on timesheets, PDFs, reports, and the Admin dashboard. If more than one active employee has the same first name, the PIN is used to match the correct account.
+
+## HireQuest hour horizontal alignment
+The Monday-Sunday hour values and weekly total were shifted slightly left so the numbers sit more centrally in the HireQuest time grid.
