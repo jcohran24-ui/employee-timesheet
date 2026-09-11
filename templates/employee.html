@@ -18,7 +18,7 @@
   <div class="app-brand text-center mb-4">
     <img class="app-logo" src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="Timesheet app icon">
     <h1 class="h3 mb-1 mt-3">Employee Timesheet</h1>
-    <p class="text-secondary mb-0">Sign in with your name and PIN.</p>
+    <p class="text-secondary mb-0">Sign in with your first name and PIN.</p>
   </div>
 
   <div class="card shadow-sm">
@@ -27,8 +27,8 @@
         {% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}
       {% endwith %}
       <form method="post" action="{{ url_for('employee_login') }}">
-        <label class="form-label fw-semibold" for="employee_name">Employee Name</label>
-        <input class="form-control form-control-lg" id="employee_name" name="employee_name" maxlength="120" required autocomplete="name" placeholder="First and last name">
+        <label class="form-label fw-semibold" for="employee_name">First Name</label>
+        <input class="form-control form-control-lg" id="employee_name" name="employee_name" maxlength="60" required autocomplete="given-name" placeholder="First name">
         <label class="form-label fw-semibold mt-3" for="pin">PIN</label>
         <input class="form-control form-control-lg" id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" required autocomplete="current-password" placeholder="4–6 digit PIN">
         <div class="d-grid mt-4"><button class="btn btn-primary btn-lg" type="submit">Sign In</button></div>

@@ -407,12 +407,33 @@ def create_tables():
 @app.route('/employee', methods=['GET', 'POST'])
 def employee_login():
     if request.method == 'POST':
-        entered_name = clean_name(request.form.get('employee_name', ''))
+        entered_first_name = clean_name(request.form.get('employee_name', ''))
         pin = (request.form.get('pin', '') or '').strip()
-        account = EmployeeAccount.query.filter_by(name_key=name_key(entered_name), active=True).first()
-        if not account or not check_password_hash(account.pin_hash, pin):
-            flash('Name or PIN is incorrect.', 'danger')
+
+        # Employees sign in with first name only. Full names remain stored and
+        # displayed everywhere else in the app.
+        first_key = entered_first_name.split()[0].casefold() if entered_first_name else ''
+
+        matching_accounts = []
+        if first_key:
+            active_accounts = EmployeeAccount.query.filter_by(active=True).all()
+            matching_accounts = [
+                account for account in active_accounts
+                if account.employee_name
+                and account.employee_name.strip().split()
+                and account.employee_name.strip().split()[0].casefold() == first_key
+            ]
+
+        valid_accounts = [
+            account for account in matching_accounts
+            if check_password_hash(account.pin_hash, pin)
+        ]
+
+        if len(valid_accounts) != 1:
+            flash('First name or PIN is incorrect.', 'danger')
             return redirect(url_for('employee_login'))
+
+        account = valid_accounts[0]
         session.clear()
         session['employee_id'] = account.id
         if account.must_change_pin:
