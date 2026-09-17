@@ -140,3 +140,6 @@ Employees now sign in using only their first name and PIN. Their full employee n
 
 ## HireQuest hour horizontal alignment
 The Monday-Sunday hour values and weekly total were shifted slightly left so the numbers sit more centrally in the HireQuest time grid.
+
+## Card-based Admin dashboard
+The Admin area now uses expandable cards for Employees, Reports, NewSouth, and Settings. Employees opens by default; the other sections stay collapsed until needed.
