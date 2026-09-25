@@ -143,3 +143,6 @@ The Monday-Sunday hour values and weekly total were shifted slightly left so the
 
 ## Card-based Admin dashboard
 The Admin area now uses expandable cards for Employees, Reports, NewSouth, and Settings. Employees opens by default; the other sections stay collapsed until needed.
+
+## Uploadable HireQuest weekly ticket
+The Admin dashboard now includes a HireQuest section for uploading the current weekly ticket as JPG, JPEG, PNG, WEBP, or PDF. The app automatically keeps the top ticket when the uploaded sheet contains two vertically stacked copies, stores the normalized single-ticket PDF in the database, and uses it for subsequent employee HireQuest exports. The ticket uploaded with this version is the 09/21/2026 ticket supplied by the user.

@@ -19,8 +19,9 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter, Transformation
 import re
+from PIL import Image
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
@@ -78,6 +79,14 @@ class EmployeeAccount(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+
+
+class HireQuestTemplate(db.Model):
+    __tablename__ = 'hirequest_template'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    pdf_data = db.Column(db.LargeBinary, nullable=False)
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 class AppSetting(db.Model):
@@ -631,9 +640,11 @@ def admin_dashboard():
         'timezone': get_setting('timezone', DEFAULT_TIMEZONE),
         'weekly_cutoff_time': get_setting('weekly_cutoff_time', '17:00'),
     }
+    hirequest_template = HireQuestTemplate.query.order_by(HireQuestTemplate.uploaded_at.desc()).first()
     return render_template(
         'admin.html', employees=employees, recipients=recipients, settings=settings,
-        summary=summary, week_start=week_start, week_end=week_end
+        summary=summary, week_start=week_start, week_end=week_end,
+        hirequest_template=hirequest_template
     )
 
 
@@ -863,6 +874,78 @@ def admin_employee_timesheet_pdf(employee_id):
 
 
 
+def normalize_hirequest_template(filename: str, file_bytes: bytes) -> bytes:
+    """Return a one-ticket PDF normalized to 607 x 392 points."""
+    if not file_bytes:
+        raise ValueError('The uploaded ticket is empty.')
+    if len(file_bytes) > 15 * 1024 * 1024:
+        raise ValueError('HireQuest ticket must be 15 MB or smaller.')
+
+    name = (filename or '').lower()
+    page_width, page_height = 607, 392
+
+    if name.endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        try:
+            img = Image.open(BytesIO(file_bytes)).convert('RGB')
+        except Exception as exc:
+            raise ValueError('Could not read the uploaded image.') from exc
+        w, h = img.size
+        if w < 100 or h < 100:
+            raise ValueError('The ticket image is too small.')
+        # HireQuest sheets contain two stacked copies. Keep the top ticket only.
+        img = img.crop((0, 0, w, h // 2))
+        image_buffer = BytesIO()
+        img.save(image_buffer, format='PNG')
+        image_buffer.seek(0)
+        output = BytesIO()
+        pdf = canvas.Canvas(output, pagesize=(page_width, page_height))
+        pdf.drawImage(ImageReader(image_buffer), 0, 0, width=page_width, height=page_height,
+                      preserveAspectRatio=False, mask='auto')
+        pdf.save()
+        output.seek(0)
+        return output.getvalue()
+
+    if name.endswith('.pdf'):
+        try:
+            reader = PdfReader(BytesIO(file_bytes))
+            source = reader.pages[0]
+            sw = float(source.mediabox.width)
+            sh = float(source.mediabox.height)
+            if sw <= 0 or sh <= 0:
+                raise ValueError('Invalid PDF page size.')
+
+            # Build a fresh page and map only the TOP half of the source sheet into it.
+            writer = PdfWriter()
+            target = writer.add_blank_page(width=page_width, height=page_height)
+            sx = page_width / sw
+            sy = page_height / (sh / 2.0)
+            transform = Transformation().scale(sx=sx, sy=sy).translate(tx=0, ty=-page_height)
+            source.cropbox.lower_left = (0, sh / 2.0)
+            source.cropbox.upper_right = (sw, sh)
+            target.merge_transformed_page(source, transform)
+            output = BytesIO()
+            writer.write(output)
+            output.seek(0)
+            return output.getvalue()
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError('Could not read the uploaded PDF.') from exc
+
+    raise ValueError('Upload a JPG, PNG, WEBP, or PDF HireQuest ticket.')
+
+
+def current_hirequest_template_bytes():
+    saved = HireQuestTemplate.query.order_by(HireQuestTemplate.uploaded_at.desc()).first()
+    if saved and saved.pdf_data:
+        return bytes(saved.pdf_data)
+    fallback = os.path.join(app.root_path, 'static', 'hirequest_ticket.pdf')
+    if not os.path.exists(fallback):
+        raise FileNotFoundError('HireQuest ticket template is missing.')
+    with open(fallback, 'rb') as fh:
+        return fh.read()
+
+
 def hirequest_employee_display_name(employee_name: str):
     parts = [p for p in (employee_name or '').strip().split() if p]
     if len(parts) >= 2:
@@ -882,8 +965,9 @@ def admin_employee_hirequest_pdf(employee_id):
     daily_hours = [float(r['total'] or 0) for r in rows]
     total_hours = sum(daily_hours)
 
-    template_path = os.path.join(app.root_path, 'static', 'hirequest_ticket.pdf')
-    if not os.path.exists(template_path):
+    try:
+        template_bytes = current_hirequest_template_bytes()
+    except FileNotFoundError:
         abort(500, description='HireQuest PDF ticket template is missing.')
 
     # The uploaded sheet contained two copies of the ticket. The static PDF is
@@ -935,7 +1019,7 @@ def admin_employee_hirequest_pdf(employee_id):
 
     # Merge the overlay into the actual cropped ticket PDF so the app uses the
     # PDF supplied by the user rather than a screenshot/raster template.
-    template_reader = PdfReader(template_path)
+    template_reader = PdfReader(BytesIO(template_bytes))
     overlay_reader = PdfReader(overlay_buffer)
     page = template_reader.pages[0]
     page.merge_page(overlay_reader.pages[0])
@@ -1292,6 +1376,43 @@ def admin_newsouth_multi_pdf():
         as_attachment=True,
         download_name=f'NewSouth_Selected_{week_start.isoformat()}.pdf'
     )
+
+
+@app.post('/admin/hirequest/template')
+@admin_required
+def admin_upload_hirequest_template():
+    uploaded = request.files.get('hirequest_ticket')
+    if not uploaded or not uploaded.filename:
+        flash('Choose a HireQuest ticket file first.', 'warning')
+        return redirect(url_for('admin_dashboard'))
+
+    try:
+        normalized_pdf = normalize_hirequest_template(uploaded.filename, uploaded.read())
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    # Keep only the latest uploaded template in the database.
+    HireQuestTemplate.query.delete()
+    db.session.add(HireQuestTemplate(
+        filename=uploaded.filename[:255],
+        pdf_data=normalized_pdf,
+        uploaded_at=datetime.utcnow(),
+    ))
+    db.session.commit()
+    flash('HireQuest ticket updated. The new ticket will be used for future HireQuest PDFs.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.get('/admin/hirequest/template/current.pdf')
+@admin_required
+def admin_current_hirequest_template():
+    try:
+        data = current_hirequest_template_bytes()
+    except FileNotFoundError:
+        abort(404)
+    return send_file(BytesIO(data), mimetype='application/pdf', as_attachment=False,
+                     download_name='HireQuest_Current_Ticket.pdf')
 
 
 @app.post('/admin/email-recipients')
