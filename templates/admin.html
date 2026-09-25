@@ -47,17 +47,31 @@
         <div class="row g-3 align-items-start">
           <div class="col-lg-7">
             <form method="post" action="{{ url_for('admin_upload_hirequest_template') }}" enctype="multipart/form-data">
-              <label class="form-label fw-semibold">Upload new weekly ticket</label>
+              <label class="form-label fw-semibold">Upload new two-week ticket sheet</label>
               <input class="form-control" type="file" name="hirequest_ticket" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
-              <div class="form-text">Upload the full HireQuest sheet. If it contains two tickets, the app automatically keeps the top ticket only.</div>
-              <button class="btn btn-primary mt-3" type="submit">Update HireQuest Ticket</button>
+
+              <label class="form-label fw-semibold mt-3">First Week for This Sheet</label>
+              <input class="form-control" type="date" name="first_week_start" value="{{ week_start.isoformat() }}" required>
+
+              <div class="form-text mt-2">
+                The First Week automatically uses the top ticket. The following week automatically uses the bottom ticket.
+                Upload the next HireQuest sheet when it arrives and set its new First Week.
+              </div>
+              <button class="btn btn-primary mt-3" type="submit">Update HireQuest Sheet</button>
             </form>
           </div>
           <div class="col-lg-5">
             <div class="inner-card">
               <div class="fw-semibold mb-1">Current ticket</div>
               {% if hirequest_template %}
-                <div class="small text-secondary mb-2">{{ hirequest_template.filename }}<br>Uploaded {{ hirequest_template.uploaded_at.strftime('%m/%d/%Y %I:%M %p') }}</div>
+                <div class="small text-secondary mb-2">
+                  {{ hirequest_template.filename }}<br>
+                  Uploaded {{ hirequest_template.uploaded_at.strftime('%m/%d/%Y %I:%M %p') }}
+                  {% if hirequest_template.first_week_start %}
+                    <br>Top ticket week: {{ hirequest_template.first_week_start.strftime('%m/%d/%Y') }}
+                    <br>Bottom ticket week: the following week
+                  {% endif %}
+                </div>
               {% else %}
                 <div class="small text-secondary mb-2">Using the ticket included with this app version.</div>
               {% endif %}

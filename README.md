@@ -152,3 +152,9 @@ The app uses `psycopg2-binary`, matching the existing Render/PostgreSQL deployme
 
 ## Render PostgreSQL URL normalization
 The app now converts `postgresql+psycopg://` and `postgres+psycopg://` connection URLs to `postgresql+psycopg2://` before Flask-SQLAlchemy initializes. This prevents Render from trying to import the unavailable `psycopg` v3 package.
+
+## Automatic HireQuest top/bottom rotation
+Each uploaded HireQuest sheet is stored as the full two-ticket page. Admin assigns a First Week when uploading. Downloads for that First Week automatically use the top ticket; downloads for the following week automatically use the bottom ticket. When the next HireQuest sheet arrives, upload it with its new First Week. Previous uploaded sheets are retained so older weeks can still use the correct historical ticket.
+
+## Two-week build PostgreSQL fix
+This build now normalizes every Render PostgreSQL URL form (`postgres://`, `postgresql://`, and `postgresql+psycopg://`) to `postgresql+psycopg2://` before Flask-SQLAlchemy initializes.

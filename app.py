@@ -26,15 +26,20 @@ from PIL import Image
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
 
-# Normalize Render/PostgreSQL URLs so SQLAlchemy always uses psycopg2,
-# which is the PostgreSQL driver installed by this app.
+# Normalize Render/PostgreSQL URLs before Flask-SQLAlchemy creates the engine.
+# This deployment uses psycopg2-binary, not psycopg v3.
 database_url = os.getenv('DATABASE_URL', 'sqlite:///timesheet.db').strip()
+
 if database_url.startswith('postgres://'):
-    database_url = 'postgresql://' + database_url[len('postgres://'):]
-elif database_url.startswith('postgres+psycopg://'):
-    database_url = 'postgresql+psycopg2://' + database_url[len('postgres+psycopg://'):]
-elif database_url.startswith('postgresql+psycopg://'):
-    database_url = 'postgresql+psycopg2://' + database_url[len('postgresql+psycopg://'):]
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgres://'):]
+elif database_url.startswith('postgresql://'):
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgresql://'):]
+elif database_url.startswith('postgresql+psycopg2://'):
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgresql+psycopg2://'):]
+elif database_url.startswith('postgresql+psycopg2://'):
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgresql+psycopg2://'):]
+elif database_url.startswith('postgresql+psycopg2://'):
+    pass
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -97,6 +102,7 @@ class HireQuestTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(255), nullable=False)
     pdf_data = db.Column(db.LargeBinary, nullable=False)
+    first_week_start = db.Column(db.Date, nullable=True, index=True)
     uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -417,10 +423,20 @@ def ensure_employee_account_columns():
         db.session.commit()
 
 
+def ensure_hirequest_template_columns():
+    columns = {column['name'] for column in inspect(db.engine).get_columns('hirequest_template')}
+    if 'first_week_start' not in columns:
+        db.session.execute(text(
+            'ALTER TABLE hirequest_template ADD COLUMN first_week_start DATE'
+        ))
+        db.session.commit()
+
+
 @app.before_request
 def create_tables():
     db.create_all()
     ensure_employee_account_columns()
+    ensure_hirequest_template_columns()
     seed_admin_from_environment()
 
 
@@ -886,32 +902,39 @@ def admin_employee_timesheet_pdf(employee_id):
 
 
 def normalize_hirequest_template(filename: str, file_bytes: bytes) -> bytes:
-    """Return a one-ticket PDF normalized to 607 x 392 points."""
+    """Normalize the uploaded TWO-ticket HireQuest sheet to 607 x 784 points."""
     if not file_bytes:
         raise ValueError('The uploaded ticket is empty.')
     if len(file_bytes) > 15 * 1024 * 1024:
         raise ValueError('HireQuest ticket must be 15 MB or smaller.')
 
     name = (filename or '').lower()
-    page_width, page_height = 607, 392
+    page_width, page_height = 607, 784
 
     if name.endswith(('.jpg', '.jpeg', '.png', '.webp')):
         try:
             img = Image.open(BytesIO(file_bytes)).convert('RGB')
         except Exception as exc:
             raise ValueError('Could not read the uploaded image.') from exc
+
         w, h = img.size
-        if w < 100 or h < 100:
+        if w < 100 or h < 200:
             raise ValueError('The ticket image is too small.')
-        # HireQuest sheets contain two stacked copies. Keep the top ticket only.
-        img = img.crop((0, 0, w, h // 2))
+
         image_buffer = BytesIO()
         img.save(image_buffer, format='PNG')
         image_buffer.seek(0)
+
         output = BytesIO()
         pdf = canvas.Canvas(output, pagesize=(page_width, page_height))
-        pdf.drawImage(ImageReader(image_buffer), 0, 0, width=page_width, height=page_height,
-                      preserveAspectRatio=False, mask='auto')
+        pdf.drawImage(
+            ImageReader(image_buffer),
+            0, 0,
+            width=page_width,
+            height=page_height,
+            preserveAspectRatio=False,
+            mask='auto'
+        )
         pdf.save()
         output.seek(0)
         return output.getvalue()
@@ -925,15 +948,14 @@ def normalize_hirequest_template(filename: str, file_bytes: bytes) -> bytes:
             if sw <= 0 or sh <= 0:
                 raise ValueError('Invalid PDF page size.')
 
-            # Build a fresh page and map only the TOP half of the source sheet into it.
             writer = PdfWriter()
             target = writer.add_blank_page(width=page_width, height=page_height)
-            sx = page_width / sw
-            sy = page_height / (sh / 2.0)
-            transform = Transformation().scale(sx=sx, sy=sy).translate(tx=0, ty=-page_height)
-            source.cropbox.lower_left = (0, sh / 2.0)
-            source.cropbox.upper_right = (sw, sh)
+            transform = Transformation().scale(
+                sx=page_width / sw,
+                sy=page_height / sh
+            )
             target.merge_transformed_page(source, transform)
+
             output = BytesIO()
             writer.write(output)
             output.seek(0)
@@ -946,10 +968,79 @@ def normalize_hirequest_template(filename: str, file_bytes: bytes) -> bytes:
     raise ValueError('Upload a JPG, PNG, WEBP, or PDF HireQuest ticket.')
 
 
+def latest_hirequest_template():
+    return HireQuestTemplate.query.order_by(
+        HireQuestTemplate.uploaded_at.desc(),
+        HireQuestTemplate.id.desc()
+    ).first()
+
+
+def hirequest_template_for_week(week_start: date):
+    # Prefer the newest uploaded sheet whose First Week is on/before the week
+    # being downloaded. This lets old weeks keep using their old uploaded sheet.
+    template = (
+        HireQuestTemplate.query
+        .filter(
+            HireQuestTemplate.first_week_start.isnot(None),
+            HireQuestTemplate.first_week_start <= week_start
+        )
+        .order_by(
+            HireQuestTemplate.first_week_start.desc(),
+            HireQuestTemplate.uploaded_at.desc(),
+            HireQuestTemplate.id.desc()
+        )
+        .first()
+    )
+    return template or latest_hirequest_template()
+
+
+def hirequest_ticket_bytes_for_week(week_start: date):
+    """Return one normalized ticket: top for week 1, bottom for week 2."""
+    template = hirequest_template_for_week(week_start)
+
+    if template and template.pdf_data:
+        full_reader = PdfReader(BytesIO(bytes(template.pdf_data)))
+        full_page = full_reader.pages[0]
+
+        # New uploads are stored as a full two-ticket 607x784 sheet.
+        # Older DB entries may contain only a single 607x392 top ticket.
+        full_height = float(full_page.mediabox.height)
+        if full_height > 500:
+            first_week = template.first_week_start or week_start
+            week_number = ((week_start - first_week).days // 7)
+            use_bottom = (week_number % 2) == 1
+
+            writer = PdfWriter()
+            target = writer.add_blank_page(width=607, height=392)
+
+            # PDF origin is lower-left:
+            # bottom ticket = y 0..392, top ticket = y 392..784.
+            ty = 0 if use_bottom else -392
+            target.merge_transformed_page(
+                full_page,
+                Transformation().translate(tx=0, ty=ty)
+            )
+
+            output = BytesIO()
+            writer.write(output)
+            output.seek(0)
+            return output.getvalue(), ('bottom' if use_bottom else 'top')
+
+        return bytes(template.pdf_data), 'top'
+
+    # Fallback bundled template is a single ticket.
+    fallback = os.path.join(app.root_path, 'static', 'hirequest_ticket.pdf')
+    if not os.path.exists(fallback):
+        raise FileNotFoundError('HireQuest ticket template is missing.')
+    with open(fallback, 'rb') as fh:
+        return fh.read(), 'top'
+
+
 def current_hirequest_template_bytes():
-    saved = HireQuestTemplate.query.order_by(HireQuestTemplate.uploaded_at.desc()).first()
+    saved = latest_hirequest_template()
     if saved and saved.pdf_data:
         return bytes(saved.pdf_data)
+
     fallback = os.path.join(app.root_path, 'static', 'hirequest_ticket.pdf')
     if not os.path.exists(fallback):
         raise FileNotFoundError('HireQuest ticket template is missing.')
@@ -977,12 +1068,11 @@ def admin_employee_hirequest_pdf(employee_id):
     total_hours = sum(daily_hours)
 
     try:
-        template_bytes = current_hirequest_template_bytes()
+        template_bytes, ticket_half = hirequest_ticket_bytes_for_week(week_start)
     except FileNotFoundError:
         abort(500, description='HireQuest PDF ticket template is missing.')
 
-    # The uploaded sheet contained two copies of the ticket. The static PDF is
-    # cropped to the TOP ticket only and normalized to 607 x 392 points.
+    # The app automatically picks top or bottom from the uploaded two-week sheet.
     page_width, page_height = 607, 392
 
     # Create a transparent PDF overlay containing only the fields that change.
@@ -1397,22 +1487,35 @@ def admin_upload_hirequest_template():
         flash('Choose a HireQuest ticket file first.', 'warning')
         return redirect(url_for('admin_dashboard'))
 
+    first_week_raw = (request.form.get('first_week_start') or '').strip()
+    try:
+        first_week = monday_for(date.fromisoformat(first_week_raw))
+    except ValueError:
+        flash('Choose a valid First Week date for the HireQuest sheet.', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
     try:
         normalized_pdf = normalize_hirequest_template(uploaded.filename, uploaded.read())
     except ValueError as exc:
         flash(str(exc), 'danger')
         return redirect(url_for('admin_dashboard'))
 
-    # Keep only the latest uploaded template in the database.
-    HireQuestTemplate.query.delete()
+    # Keep uploaded sheets so an older week can still reproduce its original ticket.
     db.session.add(HireQuestTemplate(
         filename=uploaded.filename[:255],
         pdf_data=normalized_pdf,
+        first_week_start=first_week,
         uploaded_at=datetime.utcnow(),
     ))
     db.session.commit()
-    flash('HireQuest ticket updated. The new ticket will be used for future HireQuest PDFs.', 'success')
-    return redirect(url_for('admin_dashboard'))
+
+    second_week = first_week + timedelta(days=7)
+    flash(
+        f'HireQuest sheet updated. Top ticket: {first_week.strftime("%m/%d/%Y")} week. '
+        f'Bottom ticket: {second_week.strftime("%m/%d/%Y")} week.',
+        'success'
+    )
+    return redirect(url_for('admin_dashboard', week=first_week.isoformat()))
 
 
 @app.get('/admin/hirequest/template/current.pdf')
