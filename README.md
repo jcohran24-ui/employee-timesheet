@@ -149,3 +149,6 @@ The Admin dashboard now includes a HireQuest section for uploading the current w
 
 ## PostgreSQL driver fix
 The app uses `psycopg2-binary`, matching the existing Render/PostgreSQL deployment. The accidental `psycopg` v3 dependency was removed.
+
+## Render PostgreSQL URL normalization
+The app now converts `postgresql+psycopg://` and `postgres+psycopg://` connection URLs to `postgresql+psycopg2://` before Flask-SQLAlchemy initializes. This prevents Render from trying to import the unavailable `psycopg` v3 package.

@@ -25,7 +25,18 @@ from PIL import Image
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-me-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///timesheet.db').replace('postgres://', 'postgresql://', 1)
+
+# Normalize Render/PostgreSQL URLs so SQLAlchemy always uses psycopg2,
+# which is the PostgreSQL driver installed by this app.
+database_url = os.getenv('DATABASE_URL', 'sqlite:///timesheet.db').strip()
+if database_url.startswith('postgres://'):
+    database_url = 'postgresql://' + database_url[len('postgres://'):]
+elif database_url.startswith('postgres+psycopg://'):
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgres+psycopg://'):]
+elif database_url.startswith('postgresql+psycopg://'):
+    database_url = 'postgresql+psycopg2://' + database_url[len('postgresql+psycopg://'):]
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
