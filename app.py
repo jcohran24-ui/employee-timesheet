@@ -635,6 +635,7 @@ def admin_logout():
 
 @app.get('/admin')
 @app.get('/admin/preview')
+@app.get('/admin/original')
 @admin_required
 def admin_dashboard():
     week_start = selected_week_from_request()
@@ -670,7 +671,7 @@ def admin_dashboard():
     }
     hirequest_template = HireQuestTemplate.query.order_by(HireQuestTemplate.uploaded_at.desc()).first()
     return render_template(
-        ('admin_preview.html' if request.path == '/admin/preview' else 'admin.html'), employees=employees, recipients=recipients, settings=settings,
+        ('admin.html' if request.path == '/admin/original' else 'admin_preview.html'), employees=employees, recipients=recipients, settings=settings,
         summary=summary, week_start=week_start, week_end=week_end,
         hirequest_template=hirequest_template
     )
