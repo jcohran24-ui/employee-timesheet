@@ -1142,6 +1142,24 @@ def admin_employee_hirequest_pdf(employee_id):
 
 
 
+
+def get_newsouth_week_rows(employee_name: str, week_start: date):
+    """Allocate each week's hours to at most 40 regular hours, then overtime.
+
+    This also corrects older saved records whose regular/OT split was wrong,
+    without changing their stored hours or the rest of the app.
+    """
+    original_rows, _, _ = get_employee_week_rows(employee_name, week_start)
+    regular_used = 0.0
+    normalized_rows = []
+    for row in original_rows:
+        total = max(0.0, row['total'])
+        regular = min(total, max(0.0, 40.0 - regular_used))
+        overtime = max(0.0, total - regular)
+        regular_used += regular
+        normalized_rows.append({**row, 'regular': regular, 'overtime': overtime})
+    return normalized_rows, regular_used, sum(row['overtime'] for row in normalized_rows)
+
 def newsouth_default_cc(employee_name: str):
     key = (employee_name or '').strip().casefold()
     if 'vicente' in key:
@@ -1160,7 +1178,7 @@ def admin_employee_newsouth_pdf(employee_id):
 
     week_start = selected_week_from_request()
     week_end = week_start + timedelta(days=6)
-    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+    rows, total_regular, total_overtime = get_newsouth_week_rows(employee.employee_name, week_start)
 
     job_number = (request.args.get('job_number') or '25.562').strip()
     cc_number = (request.args.get('cc_number') or newsouth_default_cc(employee.employee_name)).strip()
@@ -1239,7 +1257,7 @@ def admin_employee_newsouth_pdf(employee_id):
             Paragraph(cc_number or '-', small_center),
             *[f'{r["regular"]:.2f}' if r["regular"] else '' for r in rows],
             f'{total_regular:.2f}',
-            f'{total_overtime:.2f}',
+            '',
         ],
         [
             '',
@@ -1257,7 +1275,7 @@ def admin_employee_newsouth_pdf(employee_id):
     table_data.append([
         Paragraph('<b>DAILY TOTALS</b>', small_center), '',
         *[f'{r["total"]:.2f}' if r["total"] else '0' for r in rows],
-        f'{total_regular + total_overtime:.2f}',
+        f'{total_regular:.2f}',
         f'{total_overtime:.2f}',
     ])
 
@@ -1305,7 +1323,7 @@ def admin_employee_newsouth_pdf(employee_id):
 
 
 def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_number=''):
-    rows, total_regular, total_overtime = get_employee_week_rows(employee.employee_name, week_start)
+    rows, total_regular, total_overtime = get_newsouth_week_rows(employee.employee_name, week_start)
     styles = getSampleStyleSheet()
     small = ParagraphStyle('NSSmallMulti', parent=styles['BodyText'], fontSize=7.2, leading=8)
     small_center = ParagraphStyle('NSSmallCenterMulti', parent=small, alignment=TA_CENTER)
@@ -1337,7 +1355,7 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
             Paragraph(cc_number or '-', small_center),
             *[f'{r["regular"]:.2f}' if r["regular"] else '' for r in rows],
             f'{total_regular:.2f}',
-            f'{total_overtime:.2f}',
+            '',
         ],
         [
             '',
@@ -1354,7 +1372,7 @@ def build_newsouth_employee_table(employee, week_start, job_number='25.562', cc_
     table_data.append([
         Paragraph('<b>DAILY TOTALS</b>', small_center), '',
         *[f'{r["total"]:.2f}' if r["total"] else '0' for r in rows],
-        f'{total_regular + total_overtime:.2f}',
+        f'{total_regular:.2f}',
         f'{total_overtime:.2f}',
     ])
 
